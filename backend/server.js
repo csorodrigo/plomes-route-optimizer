@@ -39,18 +39,31 @@ app.use(cors({
     origin: function (origin, callback) {
         console.log('🌐 CORS Origin check:', origin);
         
-        // Em produção, permitir a mesma origem e URLs do Railway
+        // Em produção, permitir a própria aplicação e requisições same-origin
         if (process.env.NODE_ENV === 'production') {
-            // Permitir requisições sem origin (same-origin) e qualquer URL HTTPS
+            // Lista de origens permitidas em produção
+            const allowedProductionOrigins = [
+                'https://plomes-route-app-production.up.railway.app',
+                'https://plomes-rota-cep-production.up.railway.app', // Caso o nome seja diferente
+                'https://web-production-*.up.railway.app' // Pattern do Railway
+            ];
+            
+            // Permitir requisições sem origin (same-origin, server-to-server, mobile apps)
             if (!origin) {
                 console.log('✅ CORS: No origin (same-origin request)');
                 callback(null, true);
-            } else if (origin.startsWith('https://')) {
-                console.log('✅ CORS: HTTPS origin allowed:', origin);
+                return;
+            }
+            
+            // Verificar se é uma origem permitida ou qualquer HTTPS do Railway
+            if (allowedProductionOrigins.some(allowed => origin === allowed) || 
+                origin.includes('.up.railway.app') ||
+                origin.startsWith('https://')) {
+                console.log('✅ CORS: Production origin allowed:', origin);
                 callback(null, true);
             } else {
-                console.log('❌ CORS: HTTP origin rejected:', origin);
-                callback(null, false);
+                console.log('❌ CORS: Production origin rejected:', origin);
+                callback(new Error('Not allowed by CORS'));
             }
         } else {
             // Em desenvolvimento
@@ -66,7 +79,7 @@ app.use(cors({
                 callback(null, true);
             } else {
                 console.log('❌ CORS: Development origin rejected:', origin);
-                callback(null, false);
+                callback(new Error('Not allowed by CORS'));
             }
         }
     },
