@@ -81,18 +81,24 @@ app.use(express.json({ limit: '10mb' }));
 const buildPath = path.join(__dirname, '../frontend/build');
 console.log('📁 Setting up static files from:', buildPath);
 
-// Configure static file serving with explicit options
-app.use(express.static(buildPath, {
+// CRITICAL: Serve static assets BEFORE any other routes to prevent catch-all interception
+app.use('/static', express.static(path.join(buildPath, 'static'), {
     maxAge: '1y', // Cache static assets for 1 year
-    etag: false,  // Disable ETags for better caching control
-    index: false  // Don't serve index.html for directories
+    etag: true,   // Enable ETags for caching
+    setHeaders: (res, path) => {
+        if (path.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        } else if (path.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+        }
+    }
 }));
 
-// Explicitly serve static assets with priority
-app.get('/static/*', express.static(buildPath));
-app.get('/favicon.ico', express.static(buildPath));
-app.get('/logo*', express.static(buildPath));
-app.get('/manifest.json', express.static(buildPath));
+// Serve other static assets
+app.use(express.static(buildPath, {
+    index: false, // Don't serve index.html for directories
+    maxAge: '1d'
+}));
 
 // Initialize services
 let db, ploomeService, geocodingService, geocodingQueue, routeOptimizer, authService, authMiddleware;
