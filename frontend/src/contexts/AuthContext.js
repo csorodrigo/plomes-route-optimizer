@@ -1,0 +1,249 @@
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+
+const AuthContext = createContext();
+
+// Custom hook to use auth context
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};
+
+// Configure axios defaults
+axios.defaults.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
+axios.defaults.withCredentials = true;
+
+const AuthProvider = ({ children }) => {
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [token, setToken] = useState(localStorage.getItem('auth_token'));
+
+    // Setup axios interceptor for auth token
+    useEffect(() => {
+        const requestInterceptor = axios.interceptors.request.use(
+            (config) => {
+                const currentToken = localStorage.getItem('auth_token');
+                if (currentToken) {
+                    config.headers.Authorization = `Bearer ${currentToken}`;
+                }
+                return config;
+            },
+            (error) => {
+                return Promise.reject(error);
+            }
+        );
+
+        const responseInterceptor = axios.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error.response?.status === 401) {
+                    // Token expired or invalid
+                    logout();
+                    toast.error('Session expired. Please log in again.');
+                }
+                return Promise.reject(error);
+            }
+        );
+
+        return () => {
+            axios.interceptors.request.eject(requestInterceptor);
+            axios.interceptors.response.eject(responseInterceptor);
+        };
+    }, []);
+
+    // Check if user is authenticated on app load
+    useEffect(() => {
+        const checkAuth = async () => {
+            const savedToken = localStorage.getItem('auth_token');
+            
+            if (!savedToken) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const response = await axios.get('/api/auth/verify');
+                
+                if (response.data.success) {
+                    setUser(response.data.user);
+                    setToken(savedToken);
+                } else {
+                    localStorage.removeItem('auth_token');
+                    setToken(null);
+                }
+            } catch (error) {
+                console.error('Auth verification failed:', error);
+                localStorage.removeItem('auth_token');
+                setToken(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        checkAuth();
+    }, []);
+
+    const login = async (email, password) => {
+        try {
+            setLoading(true);
+            
+            const response = await axios.post('/api/auth/login', {
+                email: email.toLowerCase(),
+                password
+            });
+
+            if (response.data.success) {
+                const { token: authToken, user: userData } = response.data;
+                
+                localStorage.setItem('auth_token', authToken);
+                setToken(authToken);
+                setUser(userData);
+                
+                toast.success(`Welcome back, ${userData.name}!`);
+                
+                return { success: true, user: userData };
+            } else {
+                toast.error(response.data.error || 'Login failed');
+                return { success: false, error: response.data.error };
+            }
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || 'An error occurred during login';
+            toast.error(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const register = async (email, password, name) => {
+        try {
+            setLoading(true);
+            
+            const response = await axios.post('/api/auth/register', {
+                email: email.toLowerCase(),
+                password,
+                name: name.trim()
+            });
+
+            if (response.data.success) {
+                const { token: authToken, user: userData } = response.data;
+                
+                localStorage.setItem('auth_token', authToken);
+                setToken(authToken);
+                setUser(userData);
+                
+                toast.success(`Welcome, ${userData.name}! Your account has been created.`);
+                
+                return { success: true, user: userData };
+            } else {
+                toast.error(response.data.error || 'Registration failed');
+                return { success: false, error: response.data.error };
+            }
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || 'An error occurred during registration';
+            toast.error(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const logout = async () => {
+        try {
+            // Call logout endpoint if token exists
+            if (token) {
+                await axios.post('/api/auth/logout');
+            }
+        } catch (error) {
+            // Ignore logout errors, clean up locally anyway
+            console.error('Logout error:', error);
+        } finally {
+            // Always clean up local state
+            localStorage.removeItem('auth_token');
+            setToken(null);
+            setUser(null);
+            toast.info('You have been logged out');
+        }
+    };
+
+    const updateProfile = async (newName) => {
+        try {
+            const response = await axios.put('/api/auth/profile', {
+                name: newName.trim()
+            });
+
+            if (response.data.success) {
+                setUser(response.data.user);
+                toast.success('Profile updated successfully');
+                return { success: true };
+            } else {
+                toast.error(response.data.error || 'Profile update failed');
+                return { success: false, error: response.data.error };
+            }
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || 'An error occurred while updating profile';
+            toast.error(errorMessage);
+            return { success: false, error: errorMessage };
+        }
+    };
+
+    const changePassword = async (currentPassword, newPassword) => {
+        try {
+            const response = await axios.put('/api/auth/password', {
+                currentPassword,
+                newPassword
+            });
+
+            if (response.data.success) {
+                toast.success('Password changed successfully. Please log in again.');
+                
+                // Force logout since all sessions are invalidated
+                setTimeout(() => {
+                    logout();
+                }, 2000);
+                
+                return { success: true, requireReauth: true };
+            } else {
+                toast.error(response.data.error || 'Password change failed');
+                return { success: false, error: response.data.error };
+            }
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || 'An error occurred while changing password';
+            toast.error(errorMessage);
+            return { success: false, error: errorMessage };
+        }
+    };
+
+    const isAuthenticated = () => {
+        return !!(token && user);
+    };
+
+    const getAuthHeader = () => {
+        return token ? { Authorization: `Bearer ${token}` } : {};
+    };
+
+    const value = {
+        user,
+        token,
+        loading,
+        login,
+        register,
+        logout,
+        updateProfile,
+        changePassword,
+        isAuthenticated,
+        getAuthHeader
+    };
+
+    return (
+        <AuthContext.Provider value={value}>
+            {children}
+        </AuthContext.Provider>
+    );
+};
+
+export default AuthProvider;
