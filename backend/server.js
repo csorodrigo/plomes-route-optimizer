@@ -34,15 +34,22 @@ const setupAuthMiddleware = () => {
     }
 };
 
-// CORS configuration - simplificado para produção
+// CORS configuration - corrigido para produção
 app.use(cors({
     origin: function (origin, callback) {
+        console.log('🌐 CORS Origin check:', origin);
+        
         // Em produção, permitir a mesma origem e URLs do Railway
         if (process.env.NODE_ENV === 'production') {
             // Permitir requisições sem origin (same-origin) e qualquer URL HTTPS
-            if (!origin || origin.startsWith('https://')) {
+            if (!origin) {
+                console.log('✅ CORS: No origin (same-origin request)');
+                callback(null, true);
+            } else if (origin.startsWith('https://')) {
+                console.log('✅ CORS: HTTPS origin allowed:', origin);
                 callback(null, true);
             } else {
+                console.log('❌ CORS: HTTP origin rejected:', origin);
                 callback(null, false);
             }
         } else {
@@ -55,15 +62,17 @@ app.use(cors({
             ];
             
             if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+                console.log('✅ CORS: Development origin allowed:', origin);
                 callback(null, true);
             } else {
-                callback(new Error('Not allowed by CORS'));
+                console.log('❌ CORS: Development origin rejected:', origin);
+                callback(null, false);
             }
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept']
 }))
 
 app.use(express.json({ limit: '10mb' }));
@@ -787,19 +796,7 @@ app.get('*', (req, res) => {
             });
         }
     }
-}); else {
-    // Em desenvolvimento, retornar mensagem informativa
-    app.get('/', (req, res) => {
-        res.json({
-            message: 'Backend API is running',
-            mode: 'development',
-            frontend: 'Run "cd frontend && npm start" in another terminal',
-            api: 'http://localhost:3001/api',
-            testConnection: 'http://localhost:3001/api/test-connection',
-            health: 'http://localhost:3001/api/health'
-        });
-    });
-}
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
