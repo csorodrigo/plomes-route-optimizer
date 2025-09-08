@@ -34,7 +34,7 @@ class PloomeService {
                         'User-Key': this.apiKey,
                         'Content-Type': 'application/json; charset=utf-8'
                     },
-                    timeout: 30000
+                    timeout: 60000 // Increased to 60 seconds per request
                 })
             );
 
@@ -59,7 +59,7 @@ class PloomeService {
     async fetchAllContacts(onProgress) {
         const allContacts = [];
         let skip = 0;
-        const top = 100;
+        const top = 50; // Reduced batch size for faster individual requests
         let hasMore = true;
         let retryCount = 0;
         const maxRetries = 3;
@@ -108,7 +108,7 @@ class PloomeService {
                     }
                     
                     // Verificar se há mais registros (limitado a MAX_CONTACTS)
-                    hasMore = result.value.length === top && allContacts.length < MAX_CONTACTS;
+                    hasMore = result.value.length === 50 && allContacts.length < MAX_CONTACTS;
                     skip += top;
                     
                     // Reset retry count on success
@@ -377,7 +377,7 @@ class PloomeService {
                     'User-Key': this.apiKey,
                     'Content-Type': 'application/json; charset=utf-8'
                 },
-                timeout: 10000
+                timeout: 30000 // 30 seconds for test connection
             });
             
             console.log('✅ Ploome API connection successful');
@@ -423,7 +423,7 @@ class PloomeService {
                     'User-Key': this.apiKey,
                     'Content-Type': 'application/json; charset=utf-8'
                 },
-                timeout: 10000
+                timeout: 30000 // 30 seconds for test connection
             });
             
             return {

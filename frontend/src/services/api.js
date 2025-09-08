@@ -93,7 +93,9 @@ const apiService = {
     api.post('/api/routes/calculate', { waypoints }),
 
   // Ploome integration
-  syncCustomers: () => api.post('/api/sync/customers'),
+  syncCustomers: () => api.post('/api/sync/customers', {}, {
+    timeout: 300000 // 5 minutes timeout for sync operations
+  }),
   
   getPloomeStatus: () => api.get('/api/statistics'),
 
