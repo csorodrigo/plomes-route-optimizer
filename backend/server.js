@@ -75,16 +75,13 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept']
 }))
 
-app.use(express.json({ limit: '10mb' }));
-
-// Serve static files from React app with explicit configuration
+// CRITICAL: Serve static assets FIRST, before everything else
 const buildPath = path.join(__dirname, '../frontend/build');
 console.log('📁 Setting up static files from:', buildPath);
 
-// CRITICAL: Serve static assets BEFORE any other routes to prevent catch-all interception
+// Serve static assets with highest priority - MUST come first
 app.use('/static', express.static(path.join(buildPath, 'static'), {
-    maxAge: '1y', // Cache static assets for 1 year
-    etag: true,   // Enable ETags for caching
+    maxAge: '1y',
     setHeaders: (res, path) => {
         if (path.endsWith('.js')) {
             res.setHeader('Content-Type', 'application/javascript');
@@ -94,11 +91,13 @@ app.use('/static', express.static(path.join(buildPath, 'static'), {
     }
 }));
 
-// Serve other static assets
+// Serve favicon and other assets
 app.use(express.static(buildPath, {
-    index: false, // Don't serve index.html for directories
+    index: false,
     maxAge: '1d'
 }));
+
+app.use(express.json({ limit: '10mb' }));
 
 // Initialize services
 let db, ploomeService, geocodingService, geocodingQueue, routeOptimizer, authService, authMiddleware;
