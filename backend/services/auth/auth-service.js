@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { validationResult } = require('express-validator');
 
 class AuthService {
@@ -94,6 +95,11 @@ class AuthService {
 
     async verifyPassword(password, hash) {
         return bcrypt.compare(password, hash);
+    }
+
+    // Generate a fast hash for token storage (not for passwords)
+    generateTokenHash(token) {
+        return crypto.createHash('sha256').update(token).digest('hex');
     }
 
     async generateToken(user) {
