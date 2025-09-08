@@ -58,22 +58,39 @@ class AuthService {
 
     async createDefaultUser() {
         try {
-            // Check if default user already exists
-            const existingUser = await this.db.get(
-                'SELECT id FROM users WHERE email = ?',
-                ['gustavo.canuto@ciaramaquinas.com.br']
-            );
-
-            if (existingUser) {
-                console.log('✅ Default user already exists');
-                return;
-            }
-
-            // Create default user
             const defaultEmail = 'gustavo.canuto@ciaramaquinas.com.br';
             const defaultPassword = 'ciara123@';
             const defaultName = 'Gustavo Canuto';
 
+            // Check if default user already exists
+            const existingUser = await this.db.get(
+                'SELECT id, password_hash FROM users WHERE email = ?',
+                [defaultEmail]
+            );
+
+            if (existingUser) {
+                // Check if password hash is in old bcrypt format (doesn't contain ':')
+                if (!existingUser.password_hash.includes(':')) {
+                    console.log('🔄 Updating user from bcrypt to SHA256 hash...');
+                    
+                    // Delete old user
+                    await this.db.run('DELETE FROM users WHERE email = ?', [defaultEmail]);
+                    
+                    // Recreate with SHA256
+                    const passwordHash = await this.hashPassword(defaultPassword);
+                    await this.db.run(
+                        'INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)',
+                        [defaultEmail, passwordHash, defaultName]
+                    );
+                    
+                    console.log('✅ User updated to SHA256 hash:', defaultEmail);
+                } else {
+                    console.log('✅ Default user already exists with SHA256');
+                }
+                return;
+            }
+
+            // Create default user with SHA256
             const passwordHash = await this.hashPassword(defaultPassword);
 
             await this.db.run(
@@ -81,9 +98,9 @@ class AuthService {
                 [defaultEmail, passwordHash, defaultName]
             );
 
-            console.log('✅ Default user created:', defaultEmail);
+            console.log('✅ Default user created with SHA256:', defaultEmail);
         } catch (error) {
-            console.error('❌ Error creating default user:', error);
+            console.error('❌ Error creating/updating default user:', error);
         }
     }
 
