@@ -13,8 +13,17 @@ export const useAuth = () => {
     return context;
 };
 
-// Configure axios defaults
-axios.defaults.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
+// Configure axios defaults based on environment
+const getApiUrl = () => {
+    // In production, use relative URL (same domain)
+    if (window.location.hostname !== 'localhost') {
+        return '';  // Empty string means same origin
+    }
+    // In development, use localhost
+    return process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
+};
+
+axios.defaults.baseURL = getApiUrl();
 axios.defaults.withCredentials = true;
 
 const AuthProvider = ({ children }) => {

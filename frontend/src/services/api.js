@@ -1,8 +1,18 @@
 import axios from 'axios';
 
+// Determine API URL based on environment
+const getApiUrl = () => {
+  // In production, use relative URL (same domain)
+  if (window.location.hostname !== 'localhost') {
+    return '';  // Empty string means same origin
+  }
+  // In development, use localhost
+  return process.env.REACT_APP_API_URL || 'http://localhost:3001';
+};
+
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001',  // Direct URL to backend
+  baseURL: getApiUrl(),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
