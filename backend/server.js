@@ -77,9 +77,22 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 
-// Serve static files from React app
+// Serve static files from React app with explicit configuration
 const buildPath = path.join(__dirname, '../frontend/build');
-app.use(express.static(buildPath));
+console.log('📁 Setting up static files from:', buildPath);
+
+// Configure static file serving with explicit options
+app.use(express.static(buildPath, {
+    maxAge: '1y', // Cache static assets for 1 year
+    etag: false,  // Disable ETags for better caching control
+    index: false  // Don't serve index.html for directories
+}));
+
+// Explicitly serve static assets with priority
+app.get('/static/*', express.static(buildPath));
+app.get('/favicon.ico', express.static(buildPath));
+app.get('/logo*', express.static(buildPath));
+app.get('/manifest.json', express.static(buildPath));
 
 // Initialize services
 let db, ploomeService, geocodingService, geocodingQueue, routeOptimizer, authService, authMiddleware;

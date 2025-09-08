@@ -1,4 +1,3 @@
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { validationResult } = require('express-validator');
@@ -89,12 +88,20 @@ class AuthService {
     }
 
     async hashPassword(password) {
-        const saltRounds = 12;
-        return bcrypt.hash(password, saltRounds);
+        // Use SHA-256 with salt for password hashing
+        const salt = crypto.randomBytes(32).toString('hex');
+        const hash = crypto.createHash('sha256').update(password + salt).digest('hex');
+        return salt + ':' + hash;
     }
 
     async verifyPassword(password, hash) {
-        return bcrypt.compare(password, hash);
+        try {
+            const [salt, storedHash] = hash.split(':');
+            const testHash = crypto.createHash('sha256').update(password + salt).digest('hex');
+            return testHash === storedHash;
+        } catch (error) {
+            return false;
+        }
     }
 
     // Generate a fast hash for token storage (not for passwords)
@@ -166,7 +173,7 @@ class AuthService {
             const token = await this.generateToken(user);
 
             // Create session record
-            const tokenHash = await this.hashPassword(token);
+            const tokenHash = this.generateTokenHash(token);
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
@@ -256,7 +263,7 @@ class AuthService {
             const token = await this.generateToken(newUser);
 
             // Create session record
-            const tokenHash = await this.hashPassword(token);
+            const tokenHash = this.generateTokenHash(token);
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
@@ -288,7 +295,7 @@ class AuthService {
             const decoded = await this.verifyToken(token);
             
             // Remove session from database
-            const tokenHash = await this.hashPassword(token);
+            const tokenHash = this.generateTokenHash(token);
             await this.db.run(
                 'DELETE FROM user_sessions WHERE user_id = ? AND token_hash = ?',
                 [decoded.id, tokenHash]
