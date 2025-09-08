@@ -37,4 +37,4 @@ Thumbs.db
 
 # Cache
 .cache/
-backend/cache/*.db
+backend/cache/*.db.railway-token
