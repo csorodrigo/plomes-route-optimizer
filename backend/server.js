@@ -34,33 +34,43 @@ const setupAuthMiddleware = () => {
     }
 };
 
-// CORS configuration
+// CORS configuration - simplificado para produção
 app.use(cors({
     origin: function (origin, callback) {
-        const allowedOrigins = [
-            'http://localhost:3000',
-            'http://localhost:3001',
-            'http://127.0.0.1:3000',
-            'http://127.0.0.1:3001'
-        ];
-        
-        if (process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL) {
-            allowedOrigins.push(process.env.FRONTEND_URL);
-        }
-        
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
+        // Em produção, permitir a mesma origem e URLs do Railway
+        if (process.env.NODE_ENV === 'production') {
+            // Permitir requisições sem origin (same-origin) e qualquer URL HTTPS
+            if (!origin || origin.startsWith('https://')) {
+                callback(null, true);
+            } else {
+                callback(null, false);
+            }
         } else {
-            callback(new Error('Not allowed by CORS'));
+            // Em desenvolvimento
+            const allowedOrigins = [
+                'http://localhost:3000',
+                'http://localhost:3001',
+                'http://127.0.0.1:3000',
+                'http://127.0.0.1:3001'
+            ];
+            
+            if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+}))
 
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+// Serve static files from React app
+const buildPath = path.join(__dirname, '../frontend/build');
+app.use(express.static(buildPath));
 
 // Initialize services
 let db, ploomeService, geocodingService, geocodingQueue, routeOptimizer, authService, authMiddleware;
@@ -752,21 +762,32 @@ app.post('/api/distance', (req, res) => {
     }
 });
 
-// Serve React app for all other routes (only in production)
-if (process.env.NODE_ENV === 'production') {
-    app.get('*', (req, res) => {
-        const buildPath = path.join(__dirname, '../frontend/build', 'index.html');
-        if (require('fs').existsSync(buildPath)) {
-            res.sendFile(buildPath);
-        } else {
+// Serve React app for all other routes
+app.get('*', (req, res) => {
+    // Não servir index.html para rotas da API
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    
+    const indexPath = path.join(__dirname, '../frontend/build', 'index.html');
+    if (require('fs').existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        // Em desenvolvimento, instruir a iniciar o frontend
+        if (process.env.NODE_ENV !== 'production') {
             res.status(404).json({
-                error: 'Frontend not built',
+                error: 'Frontend not running. Please run: cd frontend && npm start'
+            });
+        } else {
+            // Em produção, erro se não encontrar o build
+            res.status(404).json({
+                error: 'Frontend build not found',
                 message: 'Run "cd frontend && npm run build" to build the frontend',
-                mode: 'production'
+                mode: process.env.NODE_ENV || 'development'
             });
         }
-    });
-} else {
+    }
+}); else {
     // Em desenvolvimento, retornar mensagem informativa
     app.get('/', (req, res) => {
         res.json({
