@@ -82,11 +82,11 @@ const apiService = {
   geocodeBatch: (addresses) => api.post('/api/geocoding/batch', { addresses }),
 
   // Route optimization
-  optimizeRoute: (origin, customers, options = {}) => 
+  optimizeRoute: (origin, waypoints, options = {}) => 
     api.post('/api/routes/optimize', { 
       origin, 
-      customers, 
-      ...options 
+      waypoints, 
+      options 
     }),
 
   calculateRoute: (waypoints) => 
