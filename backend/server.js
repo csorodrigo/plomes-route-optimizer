@@ -580,7 +580,7 @@ app.post('/api/routes/optimize',
         }
 
         // Optimize the route
-        const optimizedRoute = routeOptimizer.optimize(waypoints, origin, options);
+        const optimizedRoute = await routeOptimizer.optimize(waypoints, origin, options);
         
         // Save route to database if requested
         if (options.save) {

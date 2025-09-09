@@ -1,8 +1,10 @@
 const haversineDistance = require('haversine-distance');
+const GoogleDirectionsService = require('./google-directions-service');
 
 class RouteOptimizer {
     constructor() {
         this.maxIterations = 1000;
+        this.googleDirections = new GoogleDirectionsService();
     }
 
     /**
@@ -12,10 +14,11 @@ class RouteOptimizer {
      * @param {Object} options - Opções adicionais
      * @returns {Object} Rota otimizada
      */
-    optimize(waypoints, origin, options = {}) {
+    async optimize(waypoints, origin, options = {}) {
         const {
             returnToOrigin = false,
-            algorithm = 'nearest-neighbor-2opt'
+            algorithm = 'nearest-neighbor-2opt',
+            useRealRoutes = true
         } = options;
 
         if (!waypoints || waypoints.length === 0) {
@@ -54,14 +57,34 @@ class RouteOptimizer {
         // Gerar direções turn-by-turn se necessário
         const directions = this.generateDirections(optimizedRoute.order, points);
 
+        // Obter waypoints otimizados
+        const optimizedWaypoints = optimizedRoute.order.map(idx => points[idx]);
+
+        // Se habilitado, obter rotas reais do Google Directions
+        let realRoute = null;
+        if (useRealRoutes && process.env.GOOGLE_MAPS_API_KEY) {
+            try {
+                console.log('📍 Getting real directions from Google Maps...');
+                const directionsResult = await this.googleDirections.getDirections(optimizedWaypoints);
+                
+                if (directionsResult.success) {
+                    realRoute = directionsResult.route;
+                    console.log('✅ Real route obtained successfully');
+                }
+            } catch (error) {
+                console.warn('⚠️  Could not get real directions, using straight lines:', error.message);
+            }
+        }
+
         return {
-            waypoints: optimizedRoute.order.map(idx => points[idx]),
+            waypoints: optimizedWaypoints,
             optimizedOrder: optimizedRoute.order,
             totalDistance,
             estimatedTime,
             directions,
             algorithm,
-            improvementPercentage: optimizedRoute.improvement || 0
+            improvementPercentage: optimizedRoute.improvement || 0,
+            realRoute // Adicionar rota real se disponível
         };
     }
 

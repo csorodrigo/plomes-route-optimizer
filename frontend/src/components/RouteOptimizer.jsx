@@ -710,7 +710,11 @@ const RouteOptimizer = () => {
           
           {route && route.waypoints.length > 0 && (
             <Polyline
-              positions={route.waypoints.map(w => [w.lat, w.lng])}
+              positions={
+                route.realRoute && route.realRoute.decodedPath && route.realRoute.decodedPath.length > 0
+                  ? route.realRoute.decodedPath.map(p => [p.lat, p.lng])
+                  : route.waypoints.map(w => [w.lat, w.lng])
+              }
               color="#007bff"
               weight={4}
               opacity={0.7}
