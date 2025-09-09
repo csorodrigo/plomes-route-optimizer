@@ -25,6 +25,11 @@ async function syncCustomers() {
             throw new Error('Não foi possível conectar à API do Ploome. Verifique a chave API.');
         }
 
+        // Buscar e cachear tags antes de processar contatos
+        console.log('\n🏷️  Buscando definições de tags...');
+        await ploomeService.fetchTags();
+        console.log(`✅ ${ploomeService.tagCache.size} tags cacheadas`);
+
         // Buscar todos os clientes
         console.log('\n📥 Buscando clientes do Ploome...');
         const startTime = Date.now();

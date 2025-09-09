@@ -249,7 +249,17 @@ const RouteOptimizer = () => {
       }));
 
       // Chamar API para otimizar e salvar a rota
-      const response = await api.optimizeRoute(origin, waypoints, { save: true });
+      const response = await api.optimizeRoute(origin, waypoints, { 
+        save: true,
+        useRealRoutes: true 
+      });
+      
+      // Debug log to verify route data
+      console.log('Route optimization response:', {
+        hasRealRoute: !!response.data?.realRoute,
+        realRouteLength: response.data?.realRoute?.decodedPath?.length || 0,
+        waypointsCount: response.data?.waypoints?.length || 0
+      });
       
       if (response.success) {
         const { route } = response;

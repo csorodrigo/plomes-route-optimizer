@@ -7,6 +7,8 @@ class PloomeService {
         this.baseUrl = process.env.PLOOME_API_URL || 'https://public-api2.ploomes.com';
         this.rateLimiter = pLimit(1);
         this.requestDelay = 500; // ms entre requisições
+        this.tagCache = null; // Cache for tag name lookups
+        this.CLIENT_TAG_ID = 40006184; // Known ID for "Cliente" tag from investigation
     }
 
     async fetchContacts(filters = {}) {
@@ -20,9 +22,9 @@ class PloomeService {
             // Base URL with pagination
             let url = `${this.baseUrl}/Contacts?$top=${top}&$skip=${skip}`;
             
-            // Expand city information to get actual city names instead of just IDs
-            // This is crucial for complete address data
-            url += `&$expand=City`;
+            // Expand city information and Tags to get complete contact data
+            // This is crucial for complete address data and customer classification
+            url += `&$expand=City,Tags`;
             
             console.log(`🔍 Fetching contacts with full address data: ${url}`);
 
@@ -90,10 +92,14 @@ class PloomeService {
                         });
                     }
                     
-                    // Filtrar e mapear contatos com informações relevantes
-                    const validContacts = result.value
-                        .filter(contact => this.isValidContact(contact))
-                        .map(contact => this.mapContact(contact));
+                    // Filtrar e mapear contatos com informações relevantes (async)
+                    const filteredContacts = [];
+                    for (const contact of result.value) {
+                        if (await this.isValidContact(contact)) {
+                            filteredContacts.push(await this.mapContact(contact));
+                        }
+                    }
+                    const validContacts = filteredContacts;
                     
                     console.log(`✅ Valid contacts after filter: ${validContacts.length} / ${result.value.length}`);
                     allContacts.push(...validContacts);
@@ -131,9 +137,16 @@ class PloomeService {
         return allContacts;
     }
 
-    isValidContact(contact) {
+    async isValidContact(contact) {
         // Validações básicas
         if (!contact || !contact.Id || !contact.Name) {
+            return false;
+        }
+        
+        // Filtrar apenas contatos com a tag "Cliente"
+        const hasClientTag = await this.hasClientTag(contact);
+        if (!hasClientTag) {
+            console.log(`🚫 Skipping contact ${contact.Name} - Not tagged as 'Cliente'`);
             return false;
         }
         
@@ -155,7 +168,7 @@ class PloomeService {
         return true;
     }
 
-    mapContact(contact) {
+    async mapContact(contact) {
         // Mapear campos do Ploome para nosso formato com tratamento completo de endereços
         const mappedContact = {
             id: contact.Id,
@@ -177,12 +190,15 @@ class PloomeService {
             // Endereço completo para geocodificação
             fullAddress: this.buildFullAddress(contact),
             
+            // Tags para classificação (async)
+            tags: await this.extractTags(contact),
+            
             // Metadados
             needsGeocoding: this.hasValidAddressForGeocoding(contact),
             lastUpdated: new Date().toISOString()
         };
         
-        console.log(`📍 Mapped contact: ${mappedContact.name} - CEP: ${mappedContact.cep} - Address: ${mappedContact.streetAddress}`);
+        console.log(`📍 Mapped contact: ${mappedContact.name} - CEP: ${mappedContact.cep} - Tags: [${mappedContact.tags.join(', ')}]`);
         return mappedContact;
     }
 
@@ -356,6 +372,108 @@ class PloomeService {
         
         // Precisa de pelo menos CEP OU (endereço E cidade)
         return hasCep || (hasStreetAddress && hasCity);
+    }
+
+    async fetchTags() {
+        // Fetch and cache tag definitions from Ploomes
+        if (this.tagCache) {
+            return this.tagCache;
+        }
+        
+        try {
+            console.log('🏷️  Fetching tag definitions from Ploomes...');
+            const response = await this.rateLimiter(() => 
+                axios.get(`${this.baseUrl}/Tags`, {
+                    headers: {
+                        'User-Key': this.apiKey,
+                        'Content-Type': 'application/json; charset=utf-8'
+                    },
+                    timeout: 30000
+                })
+            );
+            
+            // Create a map of TagId -> TagName
+            this.tagCache = new Map();
+            if (response.data.value && Array.isArray(response.data.value)) {
+                response.data.value.forEach(tag => {
+                    if (tag.Id && tag.Name) {
+                        this.tagCache.set(tag.Id, tag.Name);
+                    }
+                });
+                console.log(`✅ Cached ${this.tagCache.size} tag definitions`);
+            }
+            
+            return this.tagCache;
+        } catch (error) {
+            console.error('⚠️  Failed to fetch tags, using fallback method:', error.message);
+            // Return empty cache to prevent repeated failures
+            this.tagCache = new Map();
+            return this.tagCache;
+        }
+    }
+
+    async hasClientTag(contact) {
+        // Check if contact has the "Cliente" tag using TagId lookup
+        if (!contact.Tags || !Array.isArray(contact.Tags) || contact.Tags.length === 0) {
+            return false;
+        }
+        
+        // Method 1: Direct TagId check (most efficient)
+        const hasClienteTagId = contact.Tags.some(tag => 
+            tag && tag.TagId === this.CLIENT_TAG_ID
+        );
+        
+        if (hasClienteTagId) {
+            return true;
+        }
+        
+        // Method 2: Try tag name lookup (fallback)
+        try {
+            await this.fetchTags(); // Ensure tags are cached
+            
+            const hasClienteTagName = contact.Tags.some(tag => {
+                if (!tag || !tag.TagId) return false;
+                const tagName = this.tagCache.get(tag.TagId);
+                return tagName === 'Cliente';
+            });
+            
+            return hasClienteTagName;
+        } catch (error) {
+            console.error('⚠️  Tag name lookup failed:', error.message);
+            return false;
+        }
+    }
+
+    async extractTags(contact) {
+        // Extrair e normalizar tags do contato usando TagId lookup
+        if (!contact.Tags || !Array.isArray(contact.Tags)) {
+            return [];
+        }
+        
+        try {
+            await this.fetchTags(); // Ensure tags are cached
+            
+            return contact.Tags.map(tag => {
+                if (typeof tag === 'string') {
+                    return tag;
+                } else if (tag && tag.Name) {
+                    return tag.Name;
+                } else if (tag && tag.Value) {
+                    return tag.Value;
+                } else if (tag && tag.TagId) {
+                    // Use TagId lookup
+                    const tagName = this.tagCache.get(tag.TagId);
+                    return tagName || `Tag_${tag.TagId}`;
+                }
+                return null;
+            }).filter(Boolean);
+        } catch (error) {
+            console.error('⚠️  Error extracting tags:', error.message);
+            // Return TagIds as fallback
+            return contact.Tags.map(tag => 
+                tag && tag.TagId ? `Tag_${tag.TagId}` : null
+            ).filter(Boolean);
+        }
     }
 
     delay(ms) {

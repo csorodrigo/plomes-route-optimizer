@@ -349,7 +349,8 @@ app.get('/api/customers',
                 ? `SELECT * FROM customers WHERE geocoding_status = ?`
                 : `SELECT * FROM customers WHERE latitude IS NOT NULL AND longitude IS NOT NULL`;
             
-            customers = await db.all(query, status ? [status] : []);
+            const rawCustomers = await db.all(query, status ? [status] : []);
+            customers = db.parseTags(rawCustomers);
         }
 
         res.json({
