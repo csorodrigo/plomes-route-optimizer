@@ -308,7 +308,6 @@ class DatabaseService {
             WHERE latitude IS NOT NULL 
             AND longitude IS NOT NULL
             AND geocoding_status = 'completed'
-            AND tags LIKE '%"Cliente"%'
             AND (111.12 * 
                     SQRT(
                         POW(latitude - ?, 2) + 
@@ -318,8 +317,7 @@ class DatabaseService {
             ORDER BY distance_km ASC
         `;
         
-        const customers = await this.all(query, [originLat, originLng, originLat, originLat, originLng, originLat, maxDistanceKm]);
-        return this.parseTags(customers);
+        return this.all(query, [originLat, originLng, originLat, originLat, originLng, originLat, maxDistanceKm]);
     }
 
     // M�todos de Geocodifica��o
@@ -471,28 +469,13 @@ class DatabaseService {
     }
 
     async getGeocodedCustomers(limit = 1000) {
-        const customers = await this.all(`
+        return this.all(`
             SELECT * FROM customers 
             WHERE latitude IS NOT NULL 
             AND longitude IS NOT NULL
-            AND tags LIKE '%"Cliente"%'
             ORDER BY updated_at DESC
             LIMIT ?
         `, [limit]);
-        
-        return this.parseTags(customers);
-    }
-
-    // Helper method to parse tags JSON for customer records
-    parseTags(customers) {
-        if (!Array.isArray(customers)) {
-            return customers;
-        }
-        
-        return customers.map(customer => ({
-            ...customer,
-            tags: customer.tags ? JSON.parse(customer.tags) : []
-        }));
     }
 
     // M�todos auxiliares do SQLite

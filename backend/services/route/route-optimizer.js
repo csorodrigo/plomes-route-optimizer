@@ -65,14 +65,30 @@ class RouteOptimizer {
         if (useRealRoutes && process.env.GOOGLE_MAPS_API_KEY) {
             try {
                 console.log('📍 Getting real directions from Google Maps...');
+                console.log(`📍 API Key configured: ${process.env.GOOGLE_MAPS_API_KEY ? 'Yes' : 'No'}`);
+                console.log(`📍 Waypoints count: ${optimizedWaypoints.length}`);
+                
                 const directionsResult = await this.googleDirections.getDirections(optimizedWaypoints);
                 
                 if (directionsResult.success) {
                     realRoute = directionsResult.route;
                     console.log('✅ Real route obtained successfully');
+                    console.log(`✅ Total distance: ${realRoute.distance.text}`);
+                    console.log(`✅ Estimated time: ${realRoute.duration.text}`);
+                } else {
+                    console.warn('⚠️  Google Directions API returned unsuccessful result');
                 }
             } catch (error) {
                 console.warn('⚠️  Could not get real directions, using straight lines:', error.message);
+                if (error.response) {
+                    console.warn('⚠️  Google API response error:', error.response.data);
+                }
+            }
+        } else {
+            if (!useRealRoutes) {
+                console.log('📍 Real routes disabled via options');
+            } else if (!process.env.GOOGLE_MAPS_API_KEY) {
+                console.warn('⚠️  Google Maps API key not configured');
             }
         }
 

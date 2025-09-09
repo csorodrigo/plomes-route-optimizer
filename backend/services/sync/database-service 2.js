@@ -33,7 +33,6 @@ class DatabaseService {
     async initialize() {
         await this.connect();
         await this.createTables();
-        await this.runMigrations();
         await this.createIndexes();
     }
 
@@ -110,30 +109,12 @@ class DatabaseService {
         }
     }
 
-    async runMigrations() {
-        try {
-            // Migration 1: Add tags column to customers table if it doesn't exist
-            const tableInfo = await this.all("PRAGMA table_info(customers)");
-            const hasTagsColumn = tableInfo.some(column => column.name === 'tags');
-            
-            if (!hasTagsColumn) {
-                console.log('🔄 Adding tags column to customers table...');
-                await this.run('ALTER TABLE customers ADD COLUMN tags TEXT');
-                console.log('✅ Tags column added successfully');
-            }
-        } catch (error) {
-            console.error('Migration error:', error);
-            // Don't throw error to avoid breaking initialization
-        }
-    }
-
     async createIndexes() {
         const indexes = [
             'CREATE INDEX IF NOT EXISTS idx_customers_cep ON customers(cep)',
             'CREATE INDEX IF NOT EXISTS idx_customers_coords ON customers(latitude, longitude)',
             'CREATE INDEX IF NOT EXISTS idx_customers_city_state ON customers(city, state)',
             'CREATE INDEX IF NOT EXISTS idx_customers_geocoding_status ON customers(geocoding_status)',
-            'CREATE INDEX IF NOT EXISTS idx_customers_tags ON customers(tags)',
             'CREATE INDEX IF NOT EXISTS idx_geocoding_cache_address ON geocoding_cache(address)',
             'CREATE INDEX IF NOT EXISTS idx_geocoding_cache_expires ON geocoding_cache(expires_at)'
         ];
@@ -184,9 +165,9 @@ class DatabaseService {
             INSERT OR REPLACE INTO customers (
                 id, name, cnpj, cpf, email, phone,
                 cep, street_address, street_number, street_complement,
-                neighborhood, city, state, full_address, tags,
+                neighborhood, city, state, full_address,
                 geocoding_status, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         `;
 
         return new Promise((resolve, reject) => {
@@ -244,7 +225,6 @@ class DatabaseService {
                         customer.city,
                         customer.state,
                         customer.fullAddress,
-                        customer.tags ? JSON.stringify(customer.tags) : null,
                         'pending'
                     ], (runErr) => {
                         processedCount++;
@@ -308,7 +288,6 @@ class DatabaseService {
             WHERE latitude IS NOT NULL 
             AND longitude IS NOT NULL
             AND geocoding_status = 'completed'
-            AND tags LIKE '%"Cliente"%'
             AND (111.12 * 
                     SQRT(
                         POW(latitude - ?, 2) + 
@@ -318,8 +297,7 @@ class DatabaseService {
             ORDER BY distance_km ASC
         `;
         
-        const customers = await this.all(query, [originLat, originLng, originLat, originLat, originLng, originLat, maxDistanceKm]);
-        return this.parseTags(customers);
+        return this.all(query, [originLat, originLng, originLat, originLat, originLng, originLat, maxDistanceKm]);
     }
 
     // M�todos de Geocodifica��o
@@ -471,28 +449,13 @@ class DatabaseService {
     }
 
     async getGeocodedCustomers(limit = 1000) {
-        const customers = await this.all(`
+        return this.all(`
             SELECT * FROM customers 
             WHERE latitude IS NOT NULL 
             AND longitude IS NOT NULL
-            AND tags LIKE '%"Cliente"%'
             ORDER BY updated_at DESC
             LIMIT ?
         `, [limit]);
-        
-        return this.parseTags(customers);
-    }
-
-    // Helper method to parse tags JSON for customer records
-    parseTags(customers) {
-        if (!Array.isArray(customers)) {
-            return customers;
-        }
-        
-        return customers.map(customer => ({
-            ...customer,
-            tags: customer.tags ? JSON.parse(customer.tags) : []
-        }));
     }
 
     // M�todos auxiliares do SQLite

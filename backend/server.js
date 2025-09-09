@@ -344,10 +344,10 @@ app.get('/api/customers',
                 parseFloat(radius)
             );
         } else {
-            // Get all customers with coordinates prioritized
+            // Get customers with coordinates prioritized and filter by "Cliente" tag
             const query = status 
-                ? `SELECT * FROM customers WHERE geocoding_status = ?`
-                : `SELECT * FROM customers WHERE latitude IS NOT NULL AND longitude IS NOT NULL`;
+                ? `SELECT * FROM customers WHERE geocoding_status = ? AND tags LIKE '%"Cliente"%'`
+                : `SELECT * FROM customers WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND tags LIKE '%"Cliente"%'`;
             
             const rawCustomers = await db.all(query, status ? [status] : []);
             customers = db.parseTags(rawCustomers);
