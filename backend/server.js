@@ -95,19 +95,35 @@ console.log('📁 Setting up static files from:', buildPath);
 // Serve static assets with highest priority - MUST come first
 app.use('/static', express.static(path.join(buildPath, 'static'), {
     maxAge: '1y',
-    setHeaders: (res, path) => {
-        if (path.endsWith('.js')) {
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+        // Strong cache-busting for JS and CSS files (hashed filenames)
+        if (filePath.endsWith('.js')) {
             res.setHeader('Content-Type', 'application/javascript');
-        } else if (path.endsWith('.css')) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (filePath.endsWith('.css')) {
             res.setHeader('Content-Type', 'text/css');
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         }
+        // Add build timestamp for debugging
+        res.setHeader('X-Build-Time', new Date().toISOString());
     }
 }));
 
 // Serve favicon and other assets
 app.use(express.static(buildPath, {
     index: false,
-    maxAge: '1d'
+    maxAge: process.env.NODE_ENV === 'production' ? '1h' : '0',
+    etag: true,
+    lastModified: true,
+    setHeaders: (res) => {
+        if (process.env.NODE_ENV === 'production') {
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+        } else {
+            res.setHeader('Cache-Control', 'no-cache');
+        }
+    }
 }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -811,6 +827,12 @@ app.get('*', (req, res) => {
     
     const indexPath = path.join(__dirname, '../frontend/build', 'index.html');
     if (require('fs').existsSync(indexPath)) {
+        // Always force fresh index.html to ensure latest build
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('X-Build-Hash', process.env.RAILWAY_GIT_COMMIT_SHA || 'local');
+        res.setHeader('X-Build-Time', new Date().toISOString());
         res.sendFile(indexPath);
     } else {
         // Em desenvolvimento, instruir a iniciar o frontend

@@ -9,7 +9,9 @@
     "dev:frontend": "cd frontend && npm start",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "start": "node backend/server.js",
-    "build": "cd frontend && npm run build",
+    "build": "npm run build:frontend",
+    "build:frontend": "cd frontend && npm ci --only=production && npm run build",
+    "postinstall": "cd frontend && npm ci",
     "sync:ploome": "node backend/services/sync/sync-customers.js",
     "test:connection": "curl http://localhost:3001/api/test-connection"
   },
