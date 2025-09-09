@@ -1,10 +1,12 @@
 const haversineDistance = require('haversine-distance');
 const GoogleDirectionsService = require('./google-directions-service');
+const OpenRouteService = require('./openroute-service');
 
 class RouteOptimizer {
     constructor() {
         this.maxIterations = 1000;
         this.googleDirections = new GoogleDirectionsService();
+        this.openRouteService = new OpenRouteService();
     }
 
     /**
@@ -60,36 +62,45 @@ class RouteOptimizer {
         // Obter waypoints otimizados
         const optimizedWaypoints = optimizedRoute.order.map(idx => points[idx]);
 
-        // Se habilitado, obter rotas reais do Google Directions
+        // Se habilitado, obter rotas reais - tentar Google primeiro, depois OpenRouteService
         let realRoute = null;
-        if (useRealRoutes && process.env.GOOGLE_MAPS_API_KEY) {
-            try {
-                console.log('📍 Getting real directions from Google Maps...');
-                console.log(`📍 API Key configured: ${process.env.GOOGLE_MAPS_API_KEY ? 'Yes' : 'No'}`);
-                console.log(`📍 Waypoints count: ${optimizedWaypoints.length}`);
-                
-                const directionsResult = await this.googleDirections.getDirections(optimizedWaypoints);
-                
-                if (directionsResult.success) {
-                    realRoute = directionsResult.route;
-                    console.log('✅ Real route obtained successfully');
-                    console.log(`✅ Total distance: ${realRoute.distance.text}`);
-                    console.log(`✅ Estimated time: ${realRoute.duration.text}`);
-                } else {
-                    console.warn('⚠️  Google Directions API returned unsuccessful result');
+        if (useRealRoutes) {
+            // Tentar Google Maps primeiro
+            if (process.env.GOOGLE_MAPS_API_KEY) {
+                try {
+                    console.log('📍 Trying Google Maps Directions API...');
+                    const directionsResult = await this.googleDirections.getDirections(optimizedWaypoints);
+                    
+                    if (directionsResult.success) {
+                        realRoute = directionsResult.route;
+                        console.log('✅ Google Maps route obtained successfully');
+                        console.log(`✅ Total distance: ${realRoute.distance.text}`);
+                        console.log(`✅ Estimated time: ${realRoute.duration.text}`);
+                    }
+                } catch (error) {
+                    console.warn('⚠️  Google Maps failed:', error.message);
                 }
-            } catch (error) {
-                console.warn('⚠️  Could not get real directions, using straight lines:', error.message);
-                if (error.response) {
-                    console.warn('⚠️  Google API response error:', error.response.data);
+            }
+            
+            // Se Google falhou ou não está configurado, usar OpenRouteService
+            if (!realRoute) {
+                try {
+                    console.log('🗺️  Trying OpenRouteService API (free alternative)...');
+                    const openRouteResult = await this.openRouteService.getDirections(optimizedWaypoints);
+                    
+                    if (openRouteResult.success) {
+                        realRoute = openRouteResult.route;
+                        console.log('✅ OpenRouteService route obtained successfully');
+                        console.log(`✅ Total distance: ${realRoute.distance.text}`);
+                        console.log(`✅ Estimated time: ${realRoute.duration.text}`);
+                    }
+                } catch (error) {
+                    console.warn('⚠️  OpenRouteService also failed:', error.message);
+                    console.warn('⚠️  Falling back to straight lines between points');
                 }
             }
         } else {
-            if (!useRealRoutes) {
-                console.log('📍 Real routes disabled via options');
-            } else if (!process.env.GOOGLE_MAPS_API_KEY) {
-                console.warn('⚠️  Google Maps API key not configured');
-            }
+            console.log('📍 Real routes disabled via options');
         }
 
         return {
