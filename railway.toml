@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "rm -rf frontend/build frontend/node_modules/.cache && npm run build"
+buildCommand = "npm ci && cd frontend && npm ci && CI=false npm run build"
 watchPatterns = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json", "frontend/src/**/*"]
 
 [deploy]
