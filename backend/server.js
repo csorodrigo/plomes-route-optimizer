@@ -3,6 +3,17 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
+const packageJson = require('../package.json');
+
+// Version and deployment info logging
+console.log('\n🚀 ========================================');
+console.log(`📌 App Version: ${packageJson.version}`);
+console.log(`📅 Build Date: ${new Date().toISOString()}`);
+console.log(`🔨 Environment: ${process.env.NODE_ENV}`);
+console.log(`🔖 Git Commit: ${process.env.RAILWAY_GIT_COMMIT_SHA || 'local-dev'}`);
+console.log(`🆔 Deployment ID: ${process.env.RAILWAY_DEPLOYMENT_ID || 'local'}`);
+console.log(`🌐 Railway Domain: ${process.env.RAILWAY_PUBLIC_DOMAIN || 'localhost'}`);
+console.log('🚀 ========================================\n');
 
 // Auto-fix database on startup
 const checkAndFixDatabase = require('./auto-fix-database');
@@ -198,6 +209,43 @@ app.get('/api/health', (req, res) => {
             database: db ? 'connected' : 'disconnected',
             ploome: ploomeService ? 'initialized' : 'not initialized',
             auth: authService ? 'initialized' : 'not initialized'
+        }
+    });
+});
+
+// Version and diagnostics endpoint
+app.get('/api/version', (req, res) => {
+    const uptime = process.uptime();
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const seconds = Math.floor(uptime % 60);
+    
+    res.json({
+        app: {
+            name: packageJson.name,
+            version: packageJson.version,
+            description: packageJson.description
+        },
+        deployment: {
+            buildDate: new Date().toISOString(),
+            environment: process.env.NODE_ENV,
+            nodeVersion: process.version,
+            uptime: `${hours}h ${minutes}m ${seconds}s`,
+            uptimeSeconds: uptime
+        },
+        railway: {
+            gitCommit: process.env.RAILWAY_GIT_COMMIT_SHA || 'not-available',
+            gitBranch: process.env.RAILWAY_GIT_BRANCH || 'not-available',
+            deploymentId: process.env.RAILWAY_DEPLOYMENT_ID || 'local',
+            projectId: process.env.RAILWAY_PROJECT_ID || 'local',
+            serviceId: process.env.RAILWAY_SERVICE_ID || 'local',
+            environmentId: process.env.RAILWAY_ENVIRONMENT_ID || 'local',
+            domain: process.env.RAILWAY_PUBLIC_DOMAIN || 'localhost'
+        },
+        features: {
+            odataFilter: 'ENABLED v2.1',
+            clientTagId: process.env.CLIENT_TAG_ID || '40006184',
+            disableOdataFilter: process.env.DISABLE_ODATA_FILTER || 'false'
         }
     });
 });
