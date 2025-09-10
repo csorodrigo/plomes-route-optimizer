@@ -8,7 +8,13 @@ class PloomeService {
         this.rateLimiter = pLimit(1);
         this.requestDelay = 500; // ms entre requisições
         this.tagCache = null; // Cache for tag name lookups
-        this.CLIENT_TAG_ID = 40006184; // Known ID for "Cliente" tag from investigation
+        
+        // Allow CLIENT_TAG_ID to be configured via environment
+        this.CLIENT_TAG_ID = process.env.CLIENT_TAG_ID ? 
+            parseInt(process.env.CLIENT_TAG_ID) : 
+            40006184; // Known ID for "Cliente" tag from investigation
+            
+        console.log(`🎯 Using CLIENT_TAG_ID: ${this.CLIENT_TAG_ID}`);
     }
 
     async fetchContacts(filters = {}) {
@@ -145,6 +151,14 @@ class PloomeService {
         
         // Filtrar apenas contatos com a tag "Cliente"
         const hasClientTag = await this.hasClientTag(contact);
+        
+        // Enhanced logging for production debugging
+        if (process.env.NODE_ENV === 'production' || process.env.DEBUG_TAGS === 'true') {
+            const tags = contact.Tags || [];
+            const tagIds = tags.map(t => t.TagId).join(', ');
+            console.log(`🏷️  [PROD] Contact: ${contact.Name} | Tags: [${tagIds}] | HasCliente: ${hasClientTag}`);
+        }
+        
         if (!hasClientTag) {
             console.log(`🚫 Skipping contact ${contact.Name} - Not tagged as 'Cliente'`);
             return false;

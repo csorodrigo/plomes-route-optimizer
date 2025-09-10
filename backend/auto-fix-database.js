@@ -14,6 +14,12 @@ const fs = require('fs');
 async function checkAndFixDatabase() {
     console.log('\n🔍 Checking database integrity...\n');
     
+    // Check for FORCE_DB_RESET environment variable
+    const forceReset = process.env.FORCE_DB_RESET === 'TRUE';
+    if (forceReset) {
+        console.log('🔴 FORCE_DB_RESET is TRUE - Database will be cleaned!');
+    }
+    
     let db;
     
     try {
@@ -25,11 +31,17 @@ async function checkAndFixDatabase() {
         const stats = await db.getStatistics();
         console.log(`📊 Current customer count: ${stats.totalCustomers}`);
         
-        // If we have more than 3000 customers, database is corrupted
-        if (stats.totalCustomers > 3000) {
-            console.log('\n⚠️  DATABASE CORRUPTION DETECTED!');
-            console.log(`   Found ${stats.totalCustomers} customers (expected ~2400)`);
-            console.log('   Database contains non-customer contacts (FORNECEDORES, etc.)');
+        // If we have more than 3000 customers OR force reset is enabled, database needs cleanup
+        if (stats.totalCustomers > 3000 || forceReset) {
+            if (forceReset) {
+                console.log('\n🔴 FORCE RESET REQUESTED!');
+                console.log(`   Current: ${stats.totalCustomers} customers`);
+                console.log('   Forcing complete database cleanup and re-sync...');
+            } else {
+                console.log('\n⚠️  DATABASE CORRUPTION DETECTED!');
+                console.log(`   Found ${stats.totalCustomers} customers (expected ~2200)`);
+                console.log('   Database contains non-customer contacts (FORNECEDORES, etc.)');
+            }
             console.log('\n🚨 STARTING AUTOMATIC FIX...\n');
             
             // Backup database
@@ -119,7 +131,16 @@ async function checkAndFixDatabase() {
         
     } catch (error) {
         console.error('❌ Error during database check:', error.message);
-        // Don't crash the server, just log the error
+        console.error('   Stack:', error.stack);
+        
+        // In production with FORCE_DB_RESET, this is critical
+        if (process.env.NODE_ENV === 'production' && forceReset) {
+            console.error('🔴 CRITICAL: Force reset failed in production!');
+            console.error('   This may cause incorrect data to persist.');
+            console.error('   Please check logs and manually run cleanup if needed.');
+        }
+        
+        // Don't crash the server, but log detailed error
     } finally {
         if (db) {
             await db.close();
