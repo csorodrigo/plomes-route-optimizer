@@ -1,0 +1,7 @@
+# Force Railway to rebuild without cache
+# Timestamp: 2025-09-10T21:12:00Z
+# Version: 2.1.0
+# Reason: Railway is using cached build from old version
+
+FORCE_REBUILD=true
+BUILD_ID=4e87ae4-force-v2.1.0

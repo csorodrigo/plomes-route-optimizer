@@ -1,7 +1,8 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "rm -rf node_modules/.cache && npm ci --omit=dev && cd frontend && rm -rf node_modules/.cache && npm ci --omit=dev && DISABLE_ESLINT_PLUGIN=true CI=false npm run build"
+buildCommand = "echo 'Build timestamp: '$(date +%s) && rm -rf node_modules/.cache && npm ci --omit=dev && cd frontend && rm -rf node_modules/.cache && npm ci --omit=dev && DISABLE_ESLINT_PLUGIN=true CI=false npm run build"
 watchPatterns = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json", "frontend/src/**/*"]
+nixpacksVersion = "1.38.0"
 
 [deploy]
 startCommand = "NODE_ENV=production node backend/server.js"
