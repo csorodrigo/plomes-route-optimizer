@@ -86,7 +86,7 @@ const AuthProvider = ({ children }) => {
         };
 
         checkAuth();
-    }, []);
+    }, [logout]);
 
     const login = async (email, password) => {
         try {

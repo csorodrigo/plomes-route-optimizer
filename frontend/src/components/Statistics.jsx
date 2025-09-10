@@ -7,14 +7,11 @@ import {
   CardContent,
   Grid,
   LinearProgress,
-  Chip,
   List,
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider,
   Button,
-  IconButton,
   Tooltip,
   Alert,
   CircularProgress
@@ -158,9 +155,9 @@ const Statistics = ({ statistics: propStatistics }) => {
     ? (statistics.geocodedCustomers / statistics.totalCustomers) * 100 
     : 0;
 
-  const routeEfficiency = statistics.totalRoutes > 0
-    ? ((statistics.optimizedRoutes || 0) / statistics.totalRoutes) * 100
-    : 0;
+  // const routeEfficiency = statistics.totalRoutes > 0
+  //   ? ((statistics.optimizedRoutes || 0) / statistics.totalRoutes) * 100
+  //   : 0;
 
   return (
     <Box>

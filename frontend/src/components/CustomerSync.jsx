@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
-  Paper,
   Typography,
   Button,
   LinearProgress,
@@ -9,8 +8,6 @@ import {
   CardContent,
   Grid,
   Alert,
-  Chip,
-  Divider,
   List,
   ListItem,
   ListItemText,
@@ -21,7 +18,6 @@ import {
   DialogActions,
   CircularProgress,
   IconButton,
-  Tooltip,
   TextField,
   FormControlLabel,
   Switch
@@ -34,11 +30,8 @@ import {
   Info as InfoIcon,
   Refresh as RefreshIcon,
   Download as DownloadIcon,
-  Upload as UploadIcon,
   Person as PersonIcon,
-  LocationOn as LocationOnIcon,
-  Settings as SettingsIcon,
-  Schedule as ScheduleIcon
+  LocationOn as LocationOnIcon
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import api from '../services/api';
@@ -54,7 +47,6 @@ const CustomerSync = ({ onSyncComplete }) => {
   const [testingConnection, setTestingConnection] = useState(false);
   const [autoSync, setAutoSync] = useState(false);
   const [syncInterval, setSyncInterval] = useState(60); // minutes
-  const [ploomeStatus, setPloomeStatus] = useState(null);
   const [customersStats, setCustomersStats] = useState({
     total: 0,
     geocoded: 0,
@@ -65,12 +57,11 @@ const CustomerSync = ({ onSyncComplete }) => {
   useEffect(() => {
     loadSyncStatus();
     testPloomeConnection();
-  }, []);
+  }, [loadSyncStatus, testPloomeConnection]);
 
   const loadSyncStatus = useCallback(async () => {
     try {
       const status = await api.getPloomeStatus();
-      setPloomeStatus(status);
       
       if (status.lastSync) {
         setLastSync(status.lastSync);
@@ -125,9 +116,9 @@ const CustomerSync = ({ onSyncComplete }) => {
     } catch (error) {
       handleSyncError(error);
     }
-  }, []);
+  }, [simulateSyncProgress]);
 
-  const simulateSyncProgress = (response) => {
+  const simulateSyncProgress = useCallback((response) => {
     const steps = [
       { progress: 10, message: 'Conectando ao Ploomes...', type: 'info' },
       { progress: 25, message: 'Buscando contatos...', type: 'info' },
@@ -155,7 +146,7 @@ const CustomerSync = ({ onSyncComplete }) => {
         handleSyncComplete(response);
       }
     }, 1000);
-  };
+  }, []);
 
   const handleSyncComplete = (response) => {
     setIsSync(false);

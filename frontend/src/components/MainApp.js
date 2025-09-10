@@ -7,7 +7,6 @@ import {
   Box,
   Grid,
   Paper,
-  Button,
   IconButton,
   Drawer,
   List,
@@ -25,7 +24,6 @@ import {
   Menu as MenuIcon,
   Map as MapIcon,
   Sync as SyncIcon,
-  Route as RouteIcon,
   AccountCircle as PersonIcon,
   Settings as SettingsIcon,
   Dashboard as DashboardIcon
@@ -44,7 +42,7 @@ const MainApp = ({ initialView = 'dashboard' }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [currentView, setCurrentView] = useState(initialView);
   const [statistics, setStatistics] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
 
   useEffect(() => {
     fetchStatistics();

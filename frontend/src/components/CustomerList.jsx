@@ -38,6 +38,21 @@ const CustomerList = () => {
   const [stats, setStats] = useState(null);
   const [geocodingProgress, setGeocodingProgress] = useState(null);
 
+  const checkGeocodingProgress = useCallback(async () => {
+    try {
+      const data = await api.getGeocodingProgress();
+      setGeocodingProgress(data);
+      
+      // Reload if geocoding completed
+      if (data.progress && data.progress.current === data.progress.total && data.progress.total > 0) {
+        loadCustomers();
+        loadStats();
+      }
+    } catch (error) {
+      console.error('Erro ao verificar progresso:', error);
+    }
+  }, [loadCustomers, loadStats]);
+
   useEffect(() => {
     loadCustomers();
     loadStats();
@@ -48,7 +63,7 @@ const CustomerList = () => {
     }, 5000);
     
     return () => clearInterval(interval);
-  }, [checkGeocodingProgress]);
+  }, [loadCustomers, loadStats, checkGeocodingProgress]);
 
   const loadCustomers = useCallback(async () => {
     setLoading(true);
@@ -74,20 +89,6 @@ const CustomerList = () => {
     }
   }, []);
 
-  const checkGeocodingProgress = useCallback(async () => {
-    try {
-      const data = await api.getGeocodingProgress();
-      setGeocodingProgress(data);
-      
-      // Reload if geocoding completed
-      if (data.progress && data.progress.current === data.progress.total && data.progress.total > 0) {
-        loadCustomers();
-        loadStats();
-      }
-    } catch (error) {
-      console.error('Erro ao verificar progresso:', error);
-    }
-  }, []);
 
   const startGeocoding = async () => {
     try {

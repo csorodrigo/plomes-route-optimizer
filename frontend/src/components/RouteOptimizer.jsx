@@ -232,48 +232,6 @@ const RouteOptimizer = () => {
     setSelectedCustomers(newSelected);
   };
 
-  const getFilteredCustomers = () => {
-    console.log('=== getFilteredCustomers called ===');
-    console.log('Current state:', {
-      hasOrigin: !!origin,
-      origin: origin,
-      radius: radius,
-      customersLength: customers.length,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Se não há origem definida, retorna todos os clientes com coordenadas
-    if (!origin) {
-      const result = customers.filter(c => c.latitude && c.longitude);
-      console.log('No origin - returning all customers with coordinates:', result.length);
-      return result;
-    }
-    
-    // Se raio é 0, retorna array vazio
-    if (radius === 0) {
-      console.log('Radius is 0 - returning empty array');
-      return [];
-    }
-    
-    console.log('About to filter customers with params:', {
-      customersTotal: customers.length,
-      originLat: origin.lat,
-      originLng: origin.lng,
-      radiusKm: radius
-    });
-    
-    // Use centralized filtering function for consistency
-    const filtered = filterCustomersInRadius(customers, origin, radius);
-    
-    console.log(`=== FILTERING RESULT ===`);
-    console.log(`Found ${filtered.length} customers within ${radius}km of origin`);
-    console.log('Origin coordinates:', origin);
-    console.log('Total customers checked:', customers.length);
-    console.log('Filtered customer IDs:', filtered.map(c => c.id));
-    console.log('========================');
-    
-    return filtered;
-  };
 
   // Remove local calculateDistance function - using centralized utility
 
@@ -363,7 +321,8 @@ const RouteOptimizer = () => {
       let nearestIdx = 0;
       let minDist = Infinity;
 
-      remaining.forEach((point, idx) => {
+      for (let idx = 0; idx < remaining.length; idx++) {
+        const point = remaining[idx];
         const dist = calculateDistance(
           current.lat, current.lng,
           point.lat, point.lng
@@ -372,7 +331,7 @@ const RouteOptimizer = () => {
           minDist = dist;
           nearestIdx = idx;
         }
-      });
+      }
 
       const next = remaining.splice(nearestIdx, 1)[0];
       route.push(next);
