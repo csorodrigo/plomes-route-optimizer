@@ -32,13 +32,23 @@ class PloomeService {
             // This filters at the API level to only get contacts with the "Cliente" tag
             url += `&$expand=City,Tags`;
             
-            // Add OData filter to get ONLY contacts that have the Cliente tag (ID: 40006184)
-            // This dramatically reduces the data transferred and processed
-            url += `&$filter=Tags/any(t: t/TagId eq ${this.CLIENT_TAG_ID})`;
+            // Add OData filter to get ONLY contacts that have the Cliente tag
+            // Can be disabled with DISABLE_ODATA_FILTER=true environment variable
+            const useODataFilter = process.env.DISABLE_ODATA_FILTER !== 'true';
             
-            console.log(`🔍 Fetching ONLY Cliente contacts with full data: ${url}`);
-            console.log(`   🎯 Filtering by CLIENT_TAG_ID: ${this.CLIENT_TAG_ID}`);
-            console.log(`   📊 Request: skip=${skip}, top=${top}`);
+            if (useODataFilter) {
+                url += `&$filter=Tags/any(t: t/TagId eq ${this.CLIENT_TAG_ID})`;
+                console.log(`\n🚀 [ODATA-FILTER-ACTIVE] Version 2.1`);
+                console.log(`🔍 Fetching ONLY Cliente contacts with OData filter:`);
+                console.log(`   Full URL: ${url}`);
+                console.log(`   🎯 CLIENT_TAG_ID filter: ${this.CLIENT_TAG_ID}`);
+                console.log(`   📊 Pagination: skip=${skip}, top=${top}`);
+                console.log(`   ✅ This should return ONLY ~2200 Cliente contacts, not 4000+\n`);
+            } else {
+                console.log(`\n⚠️  [ODATA-FILTER-DISABLED] Fetching ALL contacts`);
+                console.log(`   URL: ${url}`);
+                console.log(`   Will filter locally for CLIENT_TAG_ID: ${this.CLIENT_TAG_ID}\n`);
+            }
             
             const response = await this.rateLimiter(() => 
                 axios.get(url, {
