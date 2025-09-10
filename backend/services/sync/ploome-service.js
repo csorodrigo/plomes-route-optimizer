@@ -28,13 +28,17 @@ class PloomeService {
             // Base URL with pagination
             let url = `${this.baseUrl}/Contacts?$top=${top}&$skip=${skip}`;
             
-            // Expand city information and Tags to get complete contact data
-            // This is crucial for complete address data and customer classification
+            // CRITICAL: Expand Tags to get tag information AND filter by Cliente tag
+            // This filters at the API level to only get contacts with the "Cliente" tag
             url += `&$expand=City,Tags`;
             
-            console.log(`🔍 Fetching contacts with full address data: ${url}`);
-
-            console.log(`Fetching contacts: skip=${skip}, top=${top}`);
+            // Add OData filter to get ONLY contacts that have the Cliente tag (ID: 40006184)
+            // This dramatically reduces the data transferred and processed
+            url += `&$filter=Tags/any(t: t/TagId eq ${this.CLIENT_TAG_ID})`;
+            
+            console.log(`🔍 Fetching ONLY Cliente contacts with full data: ${url}`);
+            console.log(`   🎯 Filtering by CLIENT_TAG_ID: ${this.CLIENT_TAG_ID}`);
+            console.log(`   📊 Request: skip=${skip}, top=${top}`);
             
             const response = await this.rateLimiter(() => 
                 axios.get(url, {
@@ -154,32 +158,17 @@ class PloomeService {
             return false;
         }
         
-        // ULTRA-DETAILED TAG LOGGING FOR PRODUCTION DEBUGGING
-        console.log(`\n🔍 [TAG-DEBUG] Validating: ${contact.Name} (ID: ${contact.Id})`);
-        console.log(`   Raw Tags: ${JSON.stringify(contact.Tags)}`);
-        console.log(`   Tags is array: ${Array.isArray(contact.Tags)}`);
-        console.log(`   Tags count: ${contact.Tags ? contact.Tags.length : 0}`);
+        // Since we're now filtering at the API level with OData,
+        // contacts without the Cliente tag shouldn't even arrive here.
+        // But we'll still verify as a safety check.
         
-        if (contact.Tags && contact.Tags.length > 0) {
-            contact.Tags.forEach((tag, idx) => {
-                console.log(`   Tag[${idx}]: TagId=${tag.TagId}, Full=${JSON.stringify(tag)}`);
-            });
-        }
-        
-        // Filtrar apenas contatos com a tag "Cliente"
+        // Verificar tag Cliente (deve sempre passar agora com filtro OData)
         const hasClientTag = await this.hasClientTag(contact);
-        console.log(`   🎯 Looking for CLIENT_TAG_ID: ${this.CLIENT_TAG_ID}`);
-        console.log(`   ✅ hasClientTag result: ${hasClientTag}`);
-        
-        // Enhanced logging for production debugging
-        if (process.env.NODE_ENV === 'production' || process.env.DEBUG_TAGS === 'true') {
-            const tags = contact.Tags || [];
-            const tagIds = tags.map(t => t.TagId).join(', ');
-            console.log(`🏷️  [PROD] Contact: ${contact.Name} | Tags: [${tagIds}] | HasCliente: ${hasClientTag}`);
-        }
         
         if (!hasClientTag) {
-            console.log(`🚫 Skipping contact ${contact.Name} - Not tagged as 'Cliente'`);
+            // This should rarely happen now with API-level filtering
+            console.log(`⚠️  WARNING: Contact ${contact.Name} passed API filter but lacks Cliente tag locally`);
+            console.log(`   Tags: ${JSON.stringify(contact.Tags)}`);
             return false;
         }
         
