@@ -4,6 +4,9 @@ const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
 
+// Auto-fix database on startup
+const checkAndFixDatabase = require('./auto-fix-database');
+
 // Services
 const DatabaseService = require('./services/sync/database-service');
 const PloomeService = require('./services/sync/ploome-service');
@@ -863,6 +866,10 @@ app.use((err, req, res, next) => {
 
 // Start server
 async function startServer() {
+    // Run database auto-fix BEFORE initializing services
+    console.log('🔧 Running database integrity check...');
+    await checkAndFixDatabase();
+    
     const initialized = await initializeServices();
     
     if (!initialized) {
