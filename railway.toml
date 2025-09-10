@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "echo 'Build v2.1.0 at: '$(date) && npm ci --omit=dev && cd frontend && npm ci --omit=dev && DISABLE_ESLINT_PLUGIN=true CI=false npm run build"
+buildCommand = "echo 'Build v2.1.1 at: '$(date) && npm ci --omit=dev && cd frontend && npm ci --omit=dev && DISABLE_ESLINT_PLUGIN=true CI=false npm run build"
 watchPatterns = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json", "frontend/src/**/*"]
 
 [deploy]
