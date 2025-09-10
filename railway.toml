@@ -4,7 +4,7 @@ buildCommand = "npm ci --only=production && cd frontend && npm ci --only=product
 watchPatterns = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json", "frontend/src/**/*"]
 
 [deploy]
-startCommand = "NODE_ENV=production node server.js"
+startCommand = "NODE_ENV=production node backend/server.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
