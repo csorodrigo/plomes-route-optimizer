@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   MapContainer, 
   TileLayer, 
@@ -11,6 +11,12 @@ import {
 import L from 'leaflet';
 import { toast } from 'react-toastify';
 import api from '../services/api';
+import { 
+  calculateDistance, 
+  filterCustomersInRadius, 
+  isValidBrazilCoordinates,
+  kmToMeters 
+} from '../utils/geoUtils';
 
 // Fix Leaflet default markers
 delete L.Icon.Default.prototype._getIconUrl;
@@ -127,16 +133,9 @@ const RouteOptimizer = () => {
       console.log('Customer list length:', customerList?.length);
       
       // Filtrar clientes - mostrar todos que tenham coordenadas válidas no Brasil
-      const geocoded = customerList.filter(c => {
-        // Se tem coordenadas válidas do Brasil, incluir
-        if (c.latitude && c.longitude && 
-            c.latitude !== 0 && c.longitude !== 0 &&
-            c.latitude >= -35 && c.latitude <= 5 &&
-            c.longitude >= -75 && c.longitude <= -30) {
-          return true;
-        }
-        return false;
-      });
+      const geocoded = customerList.filter(c => 
+        isValidBrazilCoordinates(c.latitude, c.longitude)
+      );
       console.log('Geocoded customers with valid coordinates:', geocoded.length);
       
       // Mostrar apenas clientes com coordenadas válidas
@@ -202,35 +201,81 @@ const RouteOptimizer = () => {
     setSelectedCustomers(newSelected);
   };
 
-  const getFilteredCustomers = () => {
-    // Se não há origem definida, retorna todos os clientes com coordenadas
-    if (!origin) return customers.filter(c => c.latitude && c.longitude);
+  const selectAllAtCoordinates = (lat, lng) => {
+    // Find all customers at the same coordinates (with tolerance for floating point comparison)
+    const tolerance = 0.000001;
+    const customersAtLocation = filteredCustomers.filter(customer => 
+      Math.abs(customer.latitude - lat) < tolerance && 
+      Math.abs(customer.longitude - lng) < tolerance
+    );
     
-    // Se raio é 0, retorna array vazio
-    if (radius === 0) return [];
+    const newSelected = new Set(selectedCustomers);
     
-    return customers.filter(customer => {
-      if (!customer.latitude || !customer.longitude) return false;
-      
-      const distance = calculateDistance(
-        origin.lat, origin.lng,
-        customer.latitude, customer.longitude
-      );
-      return distance <= radius;
+    // If any customer at this location is not selected, select all of them
+    // If all are selected, deselect all of them
+    const allSelected = customersAtLocation.every(c => newSelected.has(c.id));
+    
+    customersAtLocation.forEach(customer => {
+      if (allSelected) {
+        newSelected.delete(customer.id);
+      } else {
+        newSelected.add(customer.id);
+      }
     });
+    
+    setSelectedCustomers(newSelected);
   };
 
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
+  const removeCustomerSelection = (customerId) => {
+    const newSelected = new Set(selectedCustomers);
+    newSelected.delete(customerId);
+    setSelectedCustomers(newSelected);
   };
+
+  const getFilteredCustomers = () => {
+    console.log('=== getFilteredCustomers called ===');
+    console.log('Current state:', {
+      hasOrigin: !!origin,
+      origin: origin,
+      radius: radius,
+      customersLength: customers.length,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Se não há origem definida, retorna todos os clientes com coordenadas
+    if (!origin) {
+      const result = customers.filter(c => c.latitude && c.longitude);
+      console.log('No origin - returning all customers with coordinates:', result.length);
+      return result;
+    }
+    
+    // Se raio é 0, retorna array vazio
+    if (radius === 0) {
+      console.log('Radius is 0 - returning empty array');
+      return [];
+    }
+    
+    console.log('About to filter customers with params:', {
+      customersTotal: customers.length,
+      originLat: origin.lat,
+      originLng: origin.lng,
+      radiusKm: radius
+    });
+    
+    // Use centralized filtering function for consistency
+    const filtered = filterCustomersInRadius(customers, origin, radius);
+    
+    console.log(`=== FILTERING RESULT ===`);
+    console.log(`Found ${filtered.length} customers within ${radius}km of origin`);
+    console.log('Origin coordinates:', origin);
+    console.log('Total customers checked:', customers.length);
+    console.log('Filtered customer IDs:', filtered.map(c => c.id));
+    console.log('========================');
+    
+    return filtered;
+  };
+
+  // Remove local calculateDistance function - using centralized utility
 
   const optimizeRoute = async () => {
     if (!origin || selectedCustomers.size === 0) {
@@ -357,7 +402,67 @@ const RouteOptimizer = () => {
     setRadius(50);
   };
 
-  const filteredCustomers = getFilteredCustomers();
+  // Memoize filteredCustomers to ensure consistent calculation across renders
+  const filteredCustomers = useMemo(() => {
+    console.log('🧠 MEMOIZED getFilteredCustomers called - calculating filteredCustomers');
+    console.log('Dependencies:', { 
+      customersLength: customers.length, 
+      hasOrigin: !!origin, 
+      originCoords: origin ? [origin.lat, origin.lng] : null,
+      radius 
+    });
+    
+    // Target customer IDs from the issue report
+    const targetIds = [401245772, 401246251, 401595195, 401706728, 401796739, 401806396, 401806494, 405232257, 408232925, 421569703, 1200272113];
+    
+    // Directly calculate here instead of calling getFilteredCustomers to avoid dependency issues
+    if (!origin || customers.length === 0) {
+      console.log('No origin or no customers, returning all customers');
+      return customers;
+    }
+    
+    // Use the centralized filter function
+    const filtered = filterCustomersInRadius(customers, origin, radius);
+    
+    console.log('🧠 MEMOIZED result:', filtered.length, 'customers filtered from', customers.length, 'total');
+    console.log('🧠 MEMOIZED filtered customer IDs:', filtered.map(c => c.id));
+    
+    // Focus on the specific target IDs
+    console.log('🎯 TARGET IDS ANALYSIS:');
+    targetIds.forEach(targetId => {
+      const customer = customers.find(c => c.id === targetId);
+      if (customer) {
+        const distance = calculateDistance(
+          origin.lat, origin.lng,
+          customer.latitude, customer.longitude
+        );
+        const isFiltered = filtered.some(c => c.id === targetId);
+        console.log(`  ID ${targetId}: ${customer.name}`);
+        console.log(`    Coordinates: ${customer.latitude}, ${customer.longitude}`);
+        console.log(`    Distance: ${distance.toFixed(2)}km`);
+        console.log(`    Within radius (${radius}km): ${distance <= radius ? 'YES' : 'NO'}`);
+        console.log(`    In filtered array: ${isFiltered ? 'YES' : 'NO'}`);
+        console.log(`    Address: ${customer.street_address || 'N/A'}, ${customer.city || 'N/A'}`);
+        console.log('    ---');
+      } else {
+        console.log(`  ID ${targetId}: NOT FOUND in customer list`);
+      }
+    });
+    
+    // Extra validation to ensure consistency
+    filtered.forEach((customer, index) => {
+      const distance = calculateDistance(
+        origin.lat, origin.lng,
+        customer.latitude, customer.longitude
+      );
+      if (index < 3 || distance > radius - 0.1) {
+        console.log(`Customer ${customer.id}: ${customer.name} - Distance: ${distance.toFixed(2)}km (${distance <= radius ? 'INSIDE' : 'OUTSIDE'})`);
+      }
+    });
+    
+    return filtered;
+  }, [customers, origin, radius]); // Dependencies: recalculate when any of these change
+  
   const selectedCount = selectedCustomers.size;
   
   // Update filtered count in stats
@@ -601,7 +706,16 @@ const RouteOptimizer = () => {
           </div>
           <div style={styles.infoItem}>
             <strong>Clientes no Raio:</strong>
-            <span>{filteredCustomers.length}</span>
+            <span>
+              {(() => {
+                console.log('🔢 === COUNTER DISPLAY ===');
+                console.log('filteredCustomers.length for counter:', filteredCustomers.length);
+                console.log('filteredCustomers array reference ID:', filteredCustomers);
+                console.log('filteredCustomers IDs:', filteredCustomers.map(c => c.id));
+                console.log('============================');
+                return filteredCustomers.length;
+              })()}
+            </span>
           </div>
           <div style={styles.infoItem}>
             <strong>Selecionados:</strong>
@@ -616,13 +730,44 @@ const RouteOptimizer = () => {
               {customers.filter(c => selectedCustomers.has(c.id)).map(customer => (
                 <div 
                   key={customer.id}
-                  style={{ ...styles.customerItem, background: '#e3f2fd' }}
-                  onClick={() => toggleCustomerSelection(customer.id)}
+                  style={{ 
+                    ...styles.customerItem, 
+                    background: '#e3f2fd',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between'
+                  }}
                 >
-                  <div style={{ fontWeight: 'bold', color: '#333' }}>{customer.name}</div>
-                  <div style={{ color: '#666', fontSize: '12px', marginTop: '2px' }}>
-                    {customer.street_address}, {customer.city}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', color: '#333' }}>{customer.name}</div>
+                    <div style={{ color: '#666', fontSize: '12px', marginTop: '2px' }}>
+                      {customer.street_address}, {customer.city}
+                    </div>
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeCustomerSelection(customer.id);
+                    }}
+                    style={{
+                      background: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '20px',
+                      height: '20px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginLeft: '10px',
+                      flexShrink: 0
+                    }}
+                    title="Remover da seleção"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
@@ -675,7 +820,7 @@ const RouteOptimizer = () => {
               </Marker>
               <Circle
                 center={[origin.lat, origin.lng]}
-                radius={radius * 1000}
+                radius={kmToMeters(radius)}
                 fillColor="#007bff"
                 fillOpacity={0.1}
                 color="#007bff"
@@ -684,39 +829,149 @@ const RouteOptimizer = () => {
             </>
           )}
           
-          {filteredCustomers.map(customer => {
-            const isSelected = selectedCustomers.has(customer.id);
-            return (
-              <Marker
-                key={customer.id}
-                position={[customer.latitude, customer.longitude]}
-                icon={isSelected ? selectedIcon : customerIcon}
-                eventHandlers={{
-                  click: () => toggleCustomerSelection(customer.id)
-                }}
-              >
-                <Popup>
-                  <strong>{customer.name}</strong><br />
-                  {customer.street_address || 'Sem endereço'}<br />
-                  {customer.city || ''} - {customer.cep || ''}<br />
-                  <button
-                    onClick={() => toggleCustomerSelection(customer.id)}
-                    style={{
-                      background: isSelected ? '#dc3545' : '#28a745',
-                      color: 'white',
-                      border: 'none',
-                      padding: '5px 10px',
-                      borderRadius: '3px',
-                      cursor: 'pointer',
-                      marginTop: '5px'
+          {(() => {
+            console.log('🗺️ === MAP MARKER RENDERING ===');
+            console.log('filteredCustomers for map rendering:', filteredCustomers.length);
+            console.log('filteredCustomers array reference ID:', filteredCustomers);
+            console.log('filteredCustomers IDs for map:', filteredCustomers.map(c => c.id));
+            
+            // Group customers by coordinates to detect overlapping markers
+            const coordinateGroups = {};
+            const overlappingMarkers = [];
+            const targetIds = [401245772, 401246251, 401595195, 401706728, 401796739, 401806396, 401806494, 405232257, 408232925, 421569703, 1200272113];
+            
+            console.log('📍 PROCESSING CUSTOMERS FOR MARKERS:');
+            filteredCustomers.forEach((customer, index) => {
+              console.log(`  ${index + 1}. ID ${customer.id} - ${customer.name} (${customer.latitude}, ${customer.longitude})`);
+              
+              if (targetIds.includes(customer.id)) {
+                console.log(`    ⭐ This is one of our TARGET IDs!`);
+              }
+              
+              const coordKey = `${customer.latitude.toFixed(6)}_${customer.longitude.toFixed(6)}`;
+              if (!coordinateGroups[coordKey]) {
+                coordinateGroups[coordKey] = [];
+              }
+              coordinateGroups[coordKey].push(customer);
+            });
+            
+            // Log coordinate analysis
+            Object.entries(coordinateGroups).forEach(([coordKey, customers]) => {
+              const [lat, lng] = coordKey.split('_');
+              console.log(`📍 Coordinate ${lat}, ${lng}: ${customers.length} customer(s)`);
+              customers.forEach((customer, index) => {
+                console.log(`  ${index + 1}. ID ${customer.id} - ${customer.name} (${customer.street_address || 'No address'})`);
+              });
+              
+              if (customers.length > 1) {
+                overlappingMarkers.push({ coordinate: coordKey, customers });
+                console.log(`⚠️  OVERLAPPING MARKERS DETECTED at ${lat}, ${lng} - ${customers.length} customers share the same coordinates`);
+              }
+            });
+            
+            console.log(`📊 SUMMARY: ${Object.keys(coordinateGroups).length} unique coordinates, ${overlappingMarkers.length} locations have overlapping markers`);
+            console.log('=================================');
+            
+            // Create markers with slight offset for overlapping ones
+            const markers = [];
+            
+            Object.entries(coordinateGroups).forEach(([coordKey, customers]) => {
+              customers.forEach((customer, index) => {
+                const isSelected = selectedCustomers.has(customer.id);
+                
+                // Add small offset for overlapping markers (0.0001 degrees ≈ 11 meters)
+                const offsetLat = customers.length > 1 ? (index * 0.0001) : 0;
+                const offsetLng = customers.length > 1 ? (index * 0.0001) : 0;
+                
+                const position = [
+                  customer.latitude + offsetLat,
+                  customer.longitude + offsetLng
+                ];
+                
+                // Create custom icon for overlapping markers
+                let markerIcon = isSelected ? selectedIcon : customerIcon;
+                
+                if (customers.length > 1) {
+                  // Create a custom icon with count badge for overlapping markers
+                  markerIcon = new L.DivIcon({
+                    html: `
+                      <div style="position: relative;">
+                        <img src="${isSelected ? 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png' : 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png'}" 
+                             style="width: 25px; height: 41px;" />
+                        ${index === 0 ? `<div style="
+                          position: absolute;
+                          top: -8px;
+                          right: -8px;
+                          background: #dc3545;
+                          color: white;
+                          border-radius: 50%;
+                          width: 20px;
+                          height: 20px;
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          font-size: 11px;
+                          font-weight: bold;
+                          border: 2px solid white;
+                          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                        ">${customers.length}</div>` : ''}
+                      </div>
+                    `,
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    className: customers.length > 1 ? 'overlapping-marker' : ''
+                  });
+                }
+                
+                markers.push(
+                  <Marker
+                    key={`${customer.id}_${index}`}
+                    position={position}
+                    icon={markerIcon}
+                    eventHandlers={{
+                      click: () => selectAllAtCoordinates(customer.latitude, customer.longitude)
                     }}
                   >
-                    {isSelected ? '✓ Selecionado (Remover)' : 'Selecionar'}
-                  </button>
-                </Popup>
-              </Marker>
-            );
-          })}
+                    <Popup>
+                      <strong>{customer.name}</strong><br />
+                      {customer.street_address || 'Sem endereço'}<br />
+                      {customer.city || ''} - {customer.cep || ''}<br />
+                      {customers.length > 1 && (
+                        <div style={{
+                          background: '#fff3cd',
+                          padding: '5px',
+                          borderRadius: '3px',
+                          margin: '5px 0',
+                          fontSize: '11px'
+                        }}>
+                          ⚠️ {customers.length} clientes compartilham esta localização<br/>
+                          Cliente #{index + 1} de {customers.length}
+                        </div>
+                      )}
+                      <button
+                        onClick={() => toggleCustomerSelection(customer.id)}
+                        style={{
+                          background: isSelected ? '#dc3545' : '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          padding: '5px 10px',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          marginTop: '5px'
+                        }}
+                      >
+                        {isSelected ? '✓ Selecionado (Remover)' : 'Selecionar'}
+                      </button>
+                    </Popup>
+                  </Marker>
+                );
+              });
+            });
+            
+            console.log(`🗺️ RENDERED ${markers.length} markers on map`);
+            return markers;
+          })()}
           
           {route && route.waypoints.length > 0 && (
             <Polyline

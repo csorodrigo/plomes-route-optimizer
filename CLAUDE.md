@@ -1,2 +1,3 @@
 - NUNCA USE DADOS INVENTADOS, MOCK DATA, DATA TEST, SEMPRE DADOS REAIS #
 - '/Users/rodrigooliveira/Documents/workspace/Claude-code/PLOMES-ROTA-CEP/GUIA_PLOOMES_API.MD' sempre que envolver acesso a api do ploomes use esse guia
+- SEMPRE USE TODOS SUBAGENTES NECESSÁRIOS COM UM ORQUESTRADOR.

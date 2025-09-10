@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -16,7 +16,6 @@ import {
   InputAdornment,
   Alert,
   CircularProgress,
-  IconButton,
   Tooltip
 } from '@mui/material';
 import {
@@ -49,9 +48,9 @@ const CustomerList = () => {
     }, 5000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [checkGeocodingProgress]);
 
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.getCustomers();
@@ -63,9 +62,9 @@ const CustomerList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const response = await api.getStatistics();
       const stats = response.statistics || response;
@@ -73,12 +72,11 @@ const CustomerList = () => {
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);
     }
-  };
+  }, []);
 
-  const checkGeocodingProgress = async () => {
+  const checkGeocodingProgress = useCallback(async () => {
     try {
-      const response = await fetch('/api/geocode/progress');
-      const data = await response.json();
+      const data = await api.getGeocodingProgress();
       setGeocodingProgress(data);
       
       // Reload if geocoding completed
@@ -89,18 +87,17 @@ const CustomerList = () => {
     } catch (error) {
       console.error('Erro ao verificar progresso:', error);
     }
-  };
+  }, []);
 
   const startGeocoding = async () => {
     try {
-      const response = await fetch('/api/geocode/start', { method: 'POST' });
-      const data = await response.json();
+      const data = await api.startGeocoding();
       
       if (data.success) {
         toast.info('Geocodificação iniciada em background');
       }
     } catch (error) {
-      toast.error('Erro ao iniciar geocodificação');
+      toast.error('Erro ao iniciar geocodificação: ' + error.message);
     }
   };
 

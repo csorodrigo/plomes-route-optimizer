@@ -19,7 +19,7 @@ async function checkAndFixDatabase() {
     try {
         // Initialize database
         db = new DatabaseService();
-        await db.connect();
+        await db.initialize(); // Use initialize instead of just connect
         
         // Check current customer count
         const stats = await db.getStatistics();

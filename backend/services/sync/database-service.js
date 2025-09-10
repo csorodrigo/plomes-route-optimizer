@@ -18,12 +18,21 @@ class DatabaseService {
 
     async connect() {
         return new Promise((resolve, reject) => {
-            this.db = new sqlite3.Database(this.dbPath, (err) => {
+            // Check if database file exists and is valid
+            const dbExists = fs.existsSync(this.dbPath);
+            const dbStats = dbExists ? fs.statSync(this.dbPath) : null;
+            
+            if (dbExists && dbStats.size === 0) {
+                console.log('⚠️  Database file is empty (0 bytes), removing...');
+                fs.unlinkSync(this.dbPath);
+            }
+            
+            this.db = new sqlite3.Database(this.dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
                 if (err) {
                     console.error('Error opening database:', err);
                     reject(err);
                 } else {
-                    console.log('Connected to SQLite database');
+                    console.log('✅ Connected to SQLite database:', this.dbPath);
                     resolve();
                 }
             });
@@ -35,6 +44,7 @@ class DatabaseService {
         await this.createTables();
         await this.runMigrations();
         await this.createIndexes();
+        await this.createDefaultUser();
     }
 
     async createTables() {
@@ -63,6 +73,30 @@ class DatabaseService {
                 last_geocoding_attempt DATETIME,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`,
+
+            // Tabela de usuários
+            `CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                name TEXT NOT NULL,
+                is_active INTEGER DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_login DATETIME
+            )`,
+
+            // Tabela de sessões de usuários
+            `CREATE TABLE IF NOT EXISTS user_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                token_hash TEXT NOT NULL,
+                expires_at DATETIME NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                user_agent TEXT,
+                ip_address TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )`,
 
             // Tabela de cache de geocodifica��o
@@ -108,6 +142,8 @@ class DatabaseService {
         for (const query of queries) {
             await this.run(query);
         }
+        
+        console.log('✅ Database tables created successfully');
     }
 
     async runMigrations() {
@@ -134,6 +170,10 @@ class DatabaseService {
             'CREATE INDEX IF NOT EXISTS idx_customers_city_state ON customers(city, state)',
             'CREATE INDEX IF NOT EXISTS idx_customers_geocoding_status ON customers(geocoding_status)',
             'CREATE INDEX IF NOT EXISTS idx_customers_tags ON customers(tags)',
+            'CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)',
+            'CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token_hash)',
+            'CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at)',
             'CREATE INDEX IF NOT EXISTS idx_geocoding_cache_address ON geocoding_cache(address)',
             'CREATE INDEX IF NOT EXISTS idx_geocoding_cache_expires ON geocoding_cache(expires_at)'
         ];
@@ -141,6 +181,8 @@ class DatabaseService {
         for (const index of indexes) {
             await this.run(index);
         }
+        
+        console.log('✅ Database indexes created successfully');
     }
 
     // M�todos de Cliente
@@ -530,6 +572,43 @@ class DatabaseService {
                 else resolve();
             });
         });
+    }
+
+    // Método para criar usuário padrão
+    async createDefaultUser() {
+        const crypto = require('crypto');
+        
+        try {
+            const defaultEmail = 'gustavo.canuto@ciaramaquinas.com.br';
+            const defaultPassword = 'ciara123@';
+            const defaultName = 'Gustavo Canuto';
+
+            // Check if default user already exists
+            const existingUser = await this.get(
+                'SELECT id FROM users WHERE email = ?',
+                [defaultEmail]
+            );
+
+            if (existingUser) {
+                console.log('✅ Default user already exists');
+                return;
+            }
+
+            // Create password hash using SHA-256 with salt
+            const salt = crypto.randomBytes(32).toString('hex');
+            const hash = crypto.createHash('sha256').update(defaultPassword + salt).digest('hex');
+            const passwordHash = salt + ':' + hash;
+
+            // Create default user
+            await this.run(
+                'INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)',
+                [defaultEmail, passwordHash, defaultName]
+            );
+
+            console.log('✅ Default user created:', defaultEmail);
+        } catch (error) {
+            console.error('❌ Error creating default user:', error);
+        }
     }
 }
 

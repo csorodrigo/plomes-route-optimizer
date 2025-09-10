@@ -104,6 +104,11 @@ const apiService = {
   // CEP services
   getCepInfo: (cep) => api.get(`/api/geocoding/cep/${cep}`),
 
+  // Geocoding queue management
+  startGeocoding: () => api.post('/api/geocode/start'),
+  
+  getGeocodingProgress: () => api.get('/api/geocode/progress'),
+
   // Utility functions for data formatting
   formatCustomerForMap: (customer) => ({
     id: customer.id,
