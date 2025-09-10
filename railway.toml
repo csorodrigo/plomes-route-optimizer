@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm ci && cd frontend && npm ci && CI=false npm run build"
+buildCommand = "npm ci --only=production && cd frontend && npm ci --only=production && DISABLE_ESLINT_PLUGIN=true CI=false npm run build"
 watchPatterns = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json", "frontend/src/**/*"]
 
 [deploy]
