@@ -1,8 +1,10 @@
-# Force Railway to rebuild without cache
-# Timestamp: 2025-09-10T21:45:00Z
-# Version: 2.1.1
-# Reason: Railway cache issues - forcing new build
+# CRITICAL: Force Railway to rebuild without cache - OData Filter Deployment
+# Timestamp: 2025-09-10T22:30:00Z
+# Version: 2.1.1 with OData filtering
+# Reason: Railway not picking up OData filter changes - MUST deploy v2.1.1
 
 FORCE_REBUILD=true
-BUILD_ID=8760356-force-v2.1.1
-CACHE_BUST=2025-09-10-2145
+BUILD_ID=84b3a8e-odata-filter-v2.1.1
+CACHE_BUST=2025-09-10-2230
+ODATA_FILTER_ACTIVE=true
+CLIENT_TAG_ID=40006184

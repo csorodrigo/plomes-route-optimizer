@@ -1,6 +1,6 @@
 {
   "name": "sales-route-optimizer",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Sistema de otimização de rotas comerciais com integração Ploome",
   "main": "backend/server.js",
   "scripts": {

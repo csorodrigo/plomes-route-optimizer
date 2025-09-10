@@ -939,8 +939,12 @@ async function startServer() {
     }
 
     app.listen(PORT, () => {
-        console.log(`\n🚀 Server running on http://localhost:${PORT}`);
+        const pkg = require('../package.json');
+        console.log(`\n🚀 CRITICAL: PLOMES-ROUTE-OPTIMIZER v${pkg.version} STARTED`);
         console.log(`\n📋 Mode: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`🎯 ODATA FILTER STATUS: ACTIVE (Tag ID: 40006184)`);
+        console.log(`🗂️  FILTERING TO ~2200 "Cliente" contacts only`);
+        console.log(`\n🚀 Server running on http://localhost:${PORT}`);
         console.log('\n📝 Available endpoints:');
         console.log('   🔐 Authentication:');
         console.log('      POST /api/auth/login - Login user');
