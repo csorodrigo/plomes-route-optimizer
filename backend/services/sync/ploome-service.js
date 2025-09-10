@@ -80,22 +80,27 @@ class PloomeService {
                 if (result.value && Array.isArray(result.value)) {
                     console.log(`📥 Received ${result.value.length} contacts from API`);
                     
-                    // Analisar uma amostra dos primeiros contatos para debugging
+                    // ULTRA-DETAILED sample analysis for first batch
                     if (result.value.length > 0 && skip === 0) {
                         const sample = result.value[0];
-                        console.log(`📋 Sample contact structure:`, {
-                            Id: sample.Id,
-                            Name: sample.Name,
-                            Email: sample.Email,
-                            ZipCode: sample.ZipCode,
-                            StreetAddress: sample.StreetAddress,
-                            Street: sample.Street,
-                            StreetNumber: sample.StreetNumber,
-                            Neighborhood: sample.Neighborhood,
-                            City: typeof sample.City === 'object' ? sample.City : { value: sample.City },
-                            State: typeof sample.State === 'object' ? sample.State : { value: sample.State },
-                            hasPhones: Array.isArray(sample.Phones) ? sample.Phones.length : 0
-                        });
+                        console.log(`\n📋 ULTRA-DETAILED Sample contact structure:`);
+                        console.log(`   Basic: Id=${sample.Id}, Name=${sample.Name}`);
+                        console.log(`   Tags field exists: ${sample.Tags !== undefined}`);
+                        console.log(`   Tags is array: ${Array.isArray(sample.Tags)}`);
+                        console.log(`   Tags count: ${sample.Tags ? sample.Tags.length : 0}`);
+                        console.log(`   Tags raw: ${JSON.stringify(sample.Tags)}`);
+                        
+                        // Check if ANY contact in first batch has tags
+                        let contactsWithTags = 0;
+                        let totalTags = 0;
+                        for (const c of result.value.slice(0, 10)) {
+                            if (c.Tags && c.Tags.length > 0) {
+                                contactsWithTags++;
+                                totalTags += c.Tags.length;
+                            }
+                        }
+                        console.log(`   📊 First 10 contacts: ${contactsWithTags} have tags, total ${totalTags} tags`);
+                        console.log(`   Address: ZipCode=${sample.ZipCode}, Street=${sample.Street}`);
                     }
                     
                     // Filtrar e mapear contatos com informações relevantes (async)
@@ -149,8 +154,22 @@ class PloomeService {
             return false;
         }
         
+        // ULTRA-DETAILED TAG LOGGING FOR PRODUCTION DEBUGGING
+        console.log(`\n🔍 [TAG-DEBUG] Validating: ${contact.Name} (ID: ${contact.Id})`);
+        console.log(`   Raw Tags: ${JSON.stringify(contact.Tags)}`);
+        console.log(`   Tags is array: ${Array.isArray(contact.Tags)}`);
+        console.log(`   Tags count: ${contact.Tags ? contact.Tags.length : 0}`);
+        
+        if (contact.Tags && contact.Tags.length > 0) {
+            contact.Tags.forEach((tag, idx) => {
+                console.log(`   Tag[${idx}]: TagId=${tag.TagId}, Full=${JSON.stringify(tag)}`);
+            });
+        }
+        
         // Filtrar apenas contatos com a tag "Cliente"
         const hasClientTag = await this.hasClientTag(contact);
+        console.log(`   🎯 Looking for CLIENT_TAG_ID: ${this.CLIENT_TAG_ID}`);
+        console.log(`   ✅ hasClientTag result: ${hasClientTag}`);
         
         // Enhanced logging for production debugging
         if (process.env.NODE_ENV === 'production' || process.env.DEBUG_TAGS === 'true') {
