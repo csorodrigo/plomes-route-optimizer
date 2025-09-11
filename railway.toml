@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "echo 'CRITICAL: Building v2.1.2 with OData Filter at: '$(date) && npm install --production && cd frontend && npm install --production && DISABLE_ESLINT_PLUGIN=true CI=false npm run build && echo 'Build v2.1.2 COMPLETED with OData filtering enabled'"
+buildCommand = "echo '🚀 Starting build v2.1.2 at: '$(date) && npm install && cd frontend && npm install && DISABLE_ESLINT_PLUGIN=true CI=false npm run build && ls -la build/ && echo '✅ Frontend build completed with '$(ls -1 build/static/js/*.js | wc -l)' JS files' && cd .. && echo '✅ Build v2.1.2 COMPLETED with OData filtering enabled'"
 watchPatterns = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json", "frontend/src/**/*", ".railway-force-rebuild"]
 
 [deploy]

@@ -104,6 +104,28 @@ app.use(cors({
 
 // CRITICAL: Serve static assets FIRST, before everything else
 const buildPath = path.join(__dirname, '../frontend/build');
+const fs = require('fs');
+
+// Check if build folder exists and list contents
+if (fs.existsSync(buildPath)) {
+    const buildFiles = fs.readdirSync(buildPath);
+    console.log('✅ Frontend build found at:', buildPath);
+    console.log('   Files:', buildFiles.join(', '));
+    
+    // Check for static folder
+    const staticPath = path.join(buildPath, 'static');
+    if (fs.existsSync(staticPath)) {
+        const jsPath = path.join(staticPath, 'js');
+        if (fs.existsSync(jsPath)) {
+            const jsFiles = fs.readdirSync(jsPath).filter(f => f.endsWith('.js'));
+            console.log(`   JS bundles: ${jsFiles.length} files`);
+        }
+    }
+} else {
+    console.error('❌ CRITICAL: Frontend build not found at', buildPath);
+    console.error('   The frontend will not work! Run: cd frontend && npm run build');
+}
+
 console.log('📁 Setting up static files from:', buildPath);
 
 // Serve static assets with highest priority - MUST come first
