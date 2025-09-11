@@ -344,7 +344,13 @@ const RouteOptimizer = () => {
     setOriginCep('');
     setSelectedCustomers(new Set());
     setRoute(null);
-    setRadius(50);
+    setRadius(15);
+  };
+
+  const clearSelectionsAndRoute = () => {
+    setOrigin(null);
+    setSelectedCustomers(new Set());
+    setRoute(null);
   };
 
   // Memoize filteredCustomers to ensure consistent calculation across renders
@@ -508,11 +514,19 @@ const RouteOptimizer = () => {
               value={originCep}
               onChange={(e) => {
                 const value = e.target.value.replace(/\D/g, '');
+                let newCep;
                 if (value.length <= 5) {
-                  setOriginCep(value);
+                  newCep = value;
                 } else {
-                  setOriginCep(`${value.slice(0, 5)}-${value.slice(5, 8)}`);
+                  newCep = `${value.slice(0, 5)}-${value.slice(5, 8)}`;
                 }
+                
+                // If the CEP changed, clear selections and route but keep the new CEP
+                if (newCep !== originCep) {
+                  clearSelectionsAndRoute();
+                }
+                
+                setOriginCep(newCep);
               }}
               onKeyPress={(e) => e.key === 'Enter' && setCepOrigin()}
             />
