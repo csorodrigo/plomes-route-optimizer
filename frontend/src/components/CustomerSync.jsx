@@ -185,17 +185,6 @@ const CustomerSync = ({ onSyncComplete }) => {
     loadSyncStatus();
   };
 
-  const handleSyncError = (error) => {
-    setIsSync(false);
-    setSyncStatus('Erro na sincronização');
-    setSyncLogs(prev => [...prev, {
-      timestamp: new Date(),
-      message: error.message,
-      type: 'error'
-    }]);
-    toast.error('Erro na sincronização: ' + error.message);
-  };
-
   const formatDate = (dateString) => {
     if (!dateString) return 'Nunca';
     return new Date(dateString).toLocaleString('pt-BR');
