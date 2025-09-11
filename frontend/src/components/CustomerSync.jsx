@@ -57,7 +57,7 @@ const CustomerSync = ({ onSyncComplete }) => {
   useEffect(() => {
     loadSyncStatus();
     testPloomeConnection();
-  }, [loadSyncStatus, testPloomeConnection]);
+  }, []);
 
   const loadSyncStatus = useCallback(async () => {
     try {
@@ -97,27 +97,6 @@ const CustomerSync = ({ onSyncComplete }) => {
     }
   }, []);
 
-  const handleStartSync = useCallback(async () => {
-    setIsSync(true);
-    setSyncProgress(0);
-    setSyncLogs([]);
-    setSyncStatus('Iniciando sincronização...');
-
-    try {
-      // Start sync process
-      const response = await api.syncCustomers();
-      
-      if (response.success) {
-        // Simulate progress updates (in real implementation, use WebSocket or polling)
-        simulateSyncProgress(response);
-      } else {
-        throw new Error(response.message || 'Erro na sincronização');
-      }
-    } catch (error) {
-      handleSyncError(error);
-    }
-  }, [simulateSyncProgress]);
-
   const simulateSyncProgress = useCallback((response) => {
     const steps = [
       { progress: 10, message: 'Conectando ao Ploomes...', type: 'info' },
@@ -147,6 +126,38 @@ const CustomerSync = ({ onSyncComplete }) => {
       }
     }, 1000);
   }, []);
+
+  const handleSyncError = (error) => {
+    setIsSync(false);
+    setSyncStatus('Erro na sincronização');
+    setSyncLogs(prev => [...prev, {
+      timestamp: new Date(),
+      message: error.message,
+      type: 'error'
+    }]);
+    toast.error('Erro na sincronização: ' + error.message);
+  };
+
+  const handleStartSync = useCallback(async () => {
+    setIsSync(true);
+    setSyncProgress(0);
+    setSyncLogs([]);
+    setSyncStatus('Iniciando sincronização...');
+
+    try {
+      // Start sync process
+      const response = await api.syncCustomers();
+      
+      if (response.success) {
+        // Simulate progress updates (in real implementation, use WebSocket or polling)
+        simulateSyncProgress(response);
+      } else {
+        throw new Error(response.message || 'Erro na sincronização');
+      }
+    } catch (error) {
+      handleSyncError(error);
+    }
+  }, [simulateSyncProgress]);
 
   const handleSyncComplete = (response) => {
     setIsSync(false);

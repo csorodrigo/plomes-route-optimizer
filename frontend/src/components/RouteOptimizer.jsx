@@ -79,7 +79,6 @@ const MapController = ({ center, zoom }) => {
   
   useEffect(() => {
     if (center && center[0] && center[1]) {
-      console.log('MapController: Setting view to', center, 'with zoom', zoom);
       map.flyTo(center, zoom || map.getZoom(), {
         duration: 1.5
       });
@@ -109,7 +108,6 @@ const RouteOptimizer = () => {
 
   // Load customers on mount
   useEffect(() => {
-    console.log('RouteOptimizer mounted, loading customers...');
     loadCustomers();
   }, []);
 
@@ -122,21 +120,16 @@ const RouteOptimizer = () => {
   }, [selectedCustomers, autoOptimize]);
 
   const loadCustomers = async () => {
-    console.log('loadCustomers called');
     setLoading(true);
     try {
-      console.log('Fetching customers from API...');
       const response = await api.getCustomers();
-      console.log('API Response:', response);
       
       const customerList = response.customers || response;
-      console.log('Customer list length:', customerList?.length);
       
       // Filtrar clientes - mostrar todos que tenham coordenadas válidas no Brasil
       const geocoded = customerList.filter(c => 
         isValidBrazilCoordinates(c.latitude, c.longitude)
       );
-      console.log('Geocoded customers with valid coordinates:', geocoded.length);
       
       // Mostrar apenas clientes com coordenadas válidas
       const customersToShow = geocoded;
@@ -169,7 +162,6 @@ const RouteOptimizer = () => {
       
       if (response.success && response.coordinates) {
         const { lat, lng } = response.coordinates;
-        console.log('Coordenadas recebidas:', { lat, lng, address: response.address });
         
         // Define a origem
         setOrigin({ lat, lng, address: response.address || `CEP ${originCep}` });
@@ -257,12 +249,6 @@ const RouteOptimizer = () => {
         useRealRoutes: true 
       });
       
-      // Debug log to verify route data
-      console.log('Route optimization response:', {
-        hasRealRoute: !!response.data?.realRoute,
-        realRouteLength: response.data?.realRoute?.decodedPath?.length || 0,
-        waypointsCount: response.data?.waypoints?.length || 0
-      });
       
       if (response.success) {
         const { route } = response;
@@ -363,61 +349,13 @@ const RouteOptimizer = () => {
 
   // Memoize filteredCustomers to ensure consistent calculation across renders
   const filteredCustomers = useMemo(() => {
-    console.log('🧠 MEMOIZED getFilteredCustomers called - calculating filteredCustomers');
-    console.log('Dependencies:', { 
-      customersLength: customers.length, 
-      hasOrigin: !!origin, 
-      originCoords: origin ? [origin.lat, origin.lng] : null,
-      radius 
-    });
-    
-    // Target customer IDs from the issue report
-    const targetIds = [401245772, 401246251, 401595195, 401706728, 401796739, 401806396, 401806494, 405232257, 408232925, 421569703, 1200272113];
-    
     // Directly calculate here instead of calling getFilteredCustomers to avoid dependency issues
     if (!origin || customers.length === 0) {
-      console.log('No origin or no customers, returning all customers');
       return customers;
     }
     
     // Use the centralized filter function
     const filtered = filterCustomersInRadius(customers, origin, radius);
-    
-    console.log('🧠 MEMOIZED result:', filtered.length, 'customers filtered from', customers.length, 'total');
-    console.log('🧠 MEMOIZED filtered customer IDs:', filtered.map(c => c.id));
-    
-    // Focus on the specific target IDs
-    console.log('🎯 TARGET IDS ANALYSIS:');
-    targetIds.forEach(targetId => {
-      const customer = customers.find(c => c.id === targetId);
-      if (customer) {
-        const distance = calculateDistance(
-          origin.lat, origin.lng,
-          customer.latitude, customer.longitude
-        );
-        const isFiltered = filtered.some(c => c.id === targetId);
-        console.log(`  ID ${targetId}: ${customer.name}`);
-        console.log(`    Coordinates: ${customer.latitude}, ${customer.longitude}`);
-        console.log(`    Distance: ${distance.toFixed(2)}km`);
-        console.log(`    Within radius (${radius}km): ${distance <= radius ? 'YES' : 'NO'}`);
-        console.log(`    In filtered array: ${isFiltered ? 'YES' : 'NO'}`);
-        console.log(`    Address: ${customer.street_address || 'N/A'}, ${customer.city || 'N/A'}`);
-        console.log('    ---');
-      } else {
-        console.log(`  ID ${targetId}: NOT FOUND in customer list`);
-      }
-    });
-    
-    // Extra validation to ensure consistency
-    filtered.forEach((customer, index) => {
-      const distance = calculateDistance(
-        origin.lat, origin.lng,
-        customer.latitude, customer.longitude
-      );
-      if (index < 3 || distance > radius - 0.1) {
-        console.log(`Customer ${customer.id}: ${customer.name} - Distance: ${distance.toFixed(2)}km (${distance <= radius ? 'INSIDE' : 'OUTSIDE'})`);
-      }
-    });
     
     return filtered;
   }, [customers, origin, radius]); // Dependencies: recalculate when any of these change
@@ -665,16 +603,7 @@ const RouteOptimizer = () => {
           </div>
           <div style={styles.infoItem}>
             <strong>Clientes no Raio:</strong>
-            <span>
-              {(() => {
-                console.log('🔢 === COUNTER DISPLAY ===');
-                console.log('filteredCustomers.length for counter:', filteredCustomers.length);
-                console.log('filteredCustomers array reference ID:', filteredCustomers);
-                console.log('filteredCustomers IDs:', filteredCustomers.map(c => c.id));
-                console.log('============================');
-                return filteredCustomers.length;
-              })()}
-            </span>
+            <span>{filteredCustomers.length}</span>
           </div>
           <div style={styles.infoItem}>
             <strong>Selecionados:</strong>
@@ -789,47 +718,16 @@ const RouteOptimizer = () => {
           )}
           
           {(() => {
-            console.log('🗺️ === MAP MARKER RENDERING ===');
-            console.log('filteredCustomers for map rendering:', filteredCustomers.length);
-            console.log('filteredCustomers array reference ID:', filteredCustomers);
-            console.log('filteredCustomers IDs for map:', filteredCustomers.map(c => c.id));
-            
             // Group customers by coordinates to detect overlapping markers
             const coordinateGroups = {};
-            const overlappingMarkers = [];
-            const targetIds = [401245772, 401246251, 401595195, 401706728, 401796739, 401806396, 401806494, 405232257, 408232925, 421569703, 1200272113];
             
-            console.log('📍 PROCESSING CUSTOMERS FOR MARKERS:');
-            filteredCustomers.forEach((customer, index) => {
-              console.log(`  ${index + 1}. ID ${customer.id} - ${customer.name} (${customer.latitude}, ${customer.longitude})`);
-              
-              if (targetIds.includes(customer.id)) {
-                console.log(`    ⭐ This is one of our TARGET IDs!`);
-              }
-              
+            filteredCustomers.forEach((customer) => {
               const coordKey = `${customer.latitude.toFixed(6)}_${customer.longitude.toFixed(6)}`;
               if (!coordinateGroups[coordKey]) {
                 coordinateGroups[coordKey] = [];
               }
               coordinateGroups[coordKey].push(customer);
             });
-            
-            // Log coordinate analysis
-            Object.entries(coordinateGroups).forEach(([coordKey, customers]) => {
-              const [lat, lng] = coordKey.split('_');
-              console.log(`📍 Coordinate ${lat}, ${lng}: ${customers.length} customer(s)`);
-              customers.forEach((customer, index) => {
-                console.log(`  ${index + 1}. ID ${customer.id} - ${customer.name} (${customer.street_address || 'No address'})`);
-              });
-              
-              if (customers.length > 1) {
-                overlappingMarkers.push({ coordinate: coordKey, customers });
-                console.log(`⚠️  OVERLAPPING MARKERS DETECTED at ${lat}, ${lng} - ${customers.length} customers share the same coordinates`);
-              }
-            });
-            
-            console.log(`📊 SUMMARY: ${Object.keys(coordinateGroups).length} unique coordinates, ${overlappingMarkers.length} locations have overlapping markers`);
-            console.log('=================================');
             
             // Create markers with slight offset for overlapping ones
             const markers = [];
@@ -928,7 +826,6 @@ const RouteOptimizer = () => {
               });
             });
             
-            console.log(`🗺️ RENDERED ${markers.length} markers on map`);
             return markers;
           })()}
           

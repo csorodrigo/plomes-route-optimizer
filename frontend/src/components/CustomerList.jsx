@@ -38,6 +38,30 @@ const CustomerList = () => {
   const [stats, setStats] = useState(null);
   const [geocodingProgress, setGeocodingProgress] = useState(null);
 
+  const loadCustomers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await api.getCustomers();
+      const customerList = response.customers || response;
+      setCustomers(customerList);
+      toast.success(`${customerList.length} clientes carregados`);
+    } catch (error) {
+      toast.error('Erro ao carregar clientes: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadStats = useCallback(async () => {
+    try {
+      const response = await api.getStatistics();
+      const stats = response.statistics || response;
+      setStats(stats);
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas:', error);
+    }
+  }, []);
+
   const checkGeocodingProgress = useCallback(async () => {
     try {
       const data = await api.getGeocodingProgress();
@@ -63,30 +87,6 @@ const CustomerList = () => {
     }, 5000);
     
     return () => clearInterval(interval);
-  }, [loadCustomers, loadStats, checkGeocodingProgress]);
-
-  const loadCustomers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await api.getCustomers();
-      const customerList = response.customers || response;
-      setCustomers(customerList);
-      toast.success(`${customerList.length} clientes carregados`);
-    } catch (error) {
-      toast.error('Erro ao carregar clientes: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadStats = useCallback(async () => {
-    try {
-      const response = await api.getStatistics();
-      const stats = response.statistics || response;
-      setStats(stats);
-    } catch (error) {
-      console.error('Erro ao carregar estatísticas:', error);
-    }
   }, []);
 
 
