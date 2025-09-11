@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { API_URL } from '../config/config';
@@ -22,6 +22,25 @@ const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [token, setToken] = useState(localStorage.getItem('auth_token'));
+
+    // Logout function - defined early to avoid circular dependency
+    const logout = useCallback(async () => {
+        try {
+            // Call logout endpoint if token exists
+            if (token) {
+                await axios.post('/api/auth/logout');
+            }
+        } catch (error) {
+            // Ignore logout errors, clean up locally anyway
+            console.error('Logout error:', error);
+        } finally {
+            // Always clean up local state
+            localStorage.removeItem('auth_token');
+            setToken(null);
+            setUser(null);
+            toast.info('You have been logged out');
+        }
+    }, [token]);
 
     // Setup axios interceptor for auth token
     useEffect(() => {
@@ -54,7 +73,7 @@ const AuthProvider = ({ children }) => {
             axios.interceptors.request.eject(requestInterceptor);
             axios.interceptors.response.eject(responseInterceptor);
         };
-    }, []);
+    }, [logout]);
 
     // Check if user is authenticated on app load
     useEffect(() => {
@@ -86,7 +105,7 @@ const AuthProvider = ({ children }) => {
         };
 
         checkAuth();
-    }, [logout]);
+    }, []);
 
     const login = async (email, password) => {
         try {
@@ -153,23 +172,6 @@ const AuthProvider = ({ children }) => {
         }
     };
 
-    const logout = async () => {
-        try {
-            // Call logout endpoint if token exists
-            if (token) {
-                await axios.post('/api/auth/logout');
-            }
-        } catch (error) {
-            // Ignore logout errors, clean up locally anyway
-            console.error('Logout error:', error);
-        } finally {
-            // Always clean up local state
-            localStorage.removeItem('auth_token');
-            setToken(null);
-            setUser(null);
-            toast.info('You have been logged out');
-        }
-    };
 
     const updateProfile = async (newName) => {
         try {
