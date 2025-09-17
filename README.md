@@ -207,4 +207,4 @@ Para dúvidas ou problemas:
 
 ---
 
-**Desenvolvido com ❤️ para otimizar rotas comerciais**
+**Desenvolvido com ❤️ para otimizar rotas comerciais**# FORCE REBUILD: Qua 17 Set 2025 11:31:47 -03 - UPDATED PT-BR BUILD v2.1.4

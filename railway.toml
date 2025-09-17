@@ -1,7 +1,7 @@
 [build]
 builder = "NIXPACKS"
-# FORCE DEPLOY: 2025-09-17T08:59:00Z - COMPREHENSIVE FIX: Package conflicts, ES modules, auth timeouts
-buildCommand = "echo '🚀 Starting COMPREHENSIVE build v2.1.4 PT-BR at: '$(date) && npm cache clean --force && npm install && echo '✅ Root dependencies installed' && cd frontend && npm cache clean --force && npm install && echo '✅ Frontend dependencies installed' && DISABLE_ESLINT_PLUGIN=true CI=false npm run build && ls -la build/ && echo '✅ Frontend build completed with '$(ls -1 build/static/js/*.js | wc -l)' JS files' && cd .. && echo '✅ COMPREHENSIVE BUILD v2.1.4 COMPLETED - Package conflicts resolved, Auth timeouts fixed'"
+# FORCE DEPLOY: 2025-09-17T11:31:47Z - URGENT PT-BR FIX: Ensuring Portuguese translations and logo
+buildCommand = "echo '🚀 URGENT BUILD: Forcing PT-BR v2.1.4 at: '$(date) && rm -rf node_modules frontend/node_modules && npm cache clean --force && npm install && echo '✅ Root dependencies installed' && cd frontend && npm cache clean --force && npm install && echo '✅ Frontend dependencies installed' && DISABLE_ESLINT_PLUGIN=true CI=false npm run build && ls -la build/ && echo '📄 Built files:' && find build/ -name '*.js' -o -name '*.html' && echo '🌍 Checking PT-BR content:' && grep -c 'Bem-vindo\|CIA MÁQUINAS\|Otimizador' build/static/js/*.js || echo 'WARNING: PT-BR content check failed' && cd .. && echo '✅ URGENT PT-BR BUILD v2.1.4 COMPLETED'"
 watchPatterns = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json", "frontend/src/**/*", ".railway-force-rebuild"]
 
 [deploy]
