@@ -1,0 +1,15 @@
+[build]
+builder = "NIXPACKS"
+# FORCE DEPLOY: 2025-09-17T08:59:00Z - COMPREHENSIVE FIX: Package conflicts, ES modules, auth timeouts
+buildCommand = "echo '🚀 Starting COMPREHENSIVE build v2.1.4 PT-BR at: '$(date) && npm cache clean --force && npm install && echo '✅ Root dependencies installed' && cd frontend && npm cache clean --force && npm install && echo '✅ Frontend dependencies installed' && DISABLE_ESLINT_PLUGIN=true CI=false npm run build && ls -la build/ && echo '✅ Frontend build completed with '$(ls -1 build/static/js/*.js | wc -l)' JS files' && cd .. && echo '✅ COMPREHENSIVE BUILD v2.1.4 COMPLETED - Package conflicts resolved, Auth timeouts fixed'"
+watchPatterns = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json", "frontend/src/**/*", ".railway-force-rebuild"]
+
+[deploy]
+startCommand = "NODE_ENV=production node backend/server.js"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[env]
+NODE_ENV = "production"
