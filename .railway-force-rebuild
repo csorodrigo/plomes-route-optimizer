@@ -1,2 +1,12 @@
-FORCE DEPLOY: Qua 17 Set 2025 13:45:00 -03 - Post commit dc7cda7: filter-obj fixes and stable deployment
-COMPREHENSIVE FIX: All missing modules added, dependency conflicts resolved, health endpoint ready
+# FORCE REBUILD - Portuguese Translation Deployment
+# Timestamp: 2025-09-17T14:43:07Z
+# Version: 2.1.4-pt-br with complete Portuguese translations
+# Reason: Force fresh deployment with Portuguese translations and CIA MÁQUINAS branding
+
+FORCE_REBUILD=true
+BUILD_ID=pt-br-deployment-2025-09-17-1143
+CACHE_BUST=2025-09-17-1143
+PORTUGUESE_TRANSLATIONS=true
+CIA_MAQUINAS_BRANDING=true
+FRONTEND_LANGUAGE=pt-BR
+CLIENT_TAG_ID=40006184

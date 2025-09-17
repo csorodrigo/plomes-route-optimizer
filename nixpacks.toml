@@ -1,0 +1,23 @@
+# Nixpacks configuration for Railway deployment
+[variables]
+NODE_ENV = "production"
+CI = "true"
+
+[phases.setup]
+# Install dependencies for both root and frontend
+cmds = [
+  "npm ci",
+  "cd frontend && npm ci"
+]
+
+[phases.build]
+# Clear cache and build the frontend during deployment
+cmds = [
+  "rm -rf frontend/build frontend/node_modules/.cache",
+  "cd frontend && npm run build",
+  "echo 'Frontend build completed successfully'"
+]
+
+[start]
+# Start the backend server
+cmd = "node backend/server.js"
