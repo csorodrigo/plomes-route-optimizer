@@ -1,12 +1,1 @@
-# FORCE REBUILD - Portuguese Translation Deployment
-# Timestamp: 2025-09-17T14:43:07Z
-# Version: 2.1.4-pt-br with complete Portuguese translations
-# Reason: Force fresh deployment with Portuguese translations and CIA MÁQUINAS branding
-
-FORCE_REBUILD=true
-BUILD_ID=pt-br-deployment-2025-09-17-1143
-CACHE_BUST=2025-09-17-1143
-PORTUGUESE_TRANSLATIONS=true
-CIA_MAQUINAS_BRANDING=true
-FRONTEND_LANGUAGE=pt-BR
-CLIENT_TAG_ID=40006184
+Force rebuild: Qua 17 Set 2025 12:56:56 -03
