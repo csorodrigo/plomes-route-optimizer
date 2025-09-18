@@ -379,19 +379,30 @@ async function _initializeDatabaseLazily() {
         await db.initialize();
         console.log('✅ Database lazy initialization completed');
 
-        // CRITICAL: Initialize auth service if not fully initialized
-        if (authService && !authService.isInitialized) {
+        // CRITICAL: Initialize auth service if not already available
+        if (!authService && db) {
+            console.log('🔐 Lazy initializing auth service...');
+            authService = new AuthService(db);
+            await authService.initialize();
+            console.log('✅ Auth service lazy initialization completed');
+
+            // Also initialize auth middleware if not available
+            if (!authMiddleware) {
+                authMiddleware = new AuthMiddleware(authService);
+                console.log('✅ Auth middleware lazy initialization completed');
+            }
+        } else if (authService && !authService.isInitialized) {
             await authService.initialize();
             console.log('✅ Auth service lazy initialization completed');
         }
 
         // Initialize services that depend on database
-        if (!geocodingService) {
+        if (!geocodingService && db) {
             geocodingService = new GeocodingService(db);
             console.log('✅ Geocoding service initialized');
         }
 
-        if (!geocodingQueue) {
+        if (!geocodingQueue && geocodingService && db) {
             geocodingQueue = new GeocodingQueue(geocodingService, db);
             console.log('✅ Geocoding queue initialized');
         }
@@ -417,7 +428,7 @@ async function initializeServices() {
             db = new DatabaseService();
         } else {
             // Database with retry logic for local/other environments
-            console.log('📊 Initializing database...');
+            console.log('📊 Initializing database service...');
             db = new DatabaseService();
 
             let dbRetries = 3;
@@ -433,6 +444,7 @@ async function initializeServices() {
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 }
             }
+            console.log('✅ Database initialization completed');
         }
 
         // Ploome Service with validation (skip connection test for Railway)
@@ -465,10 +477,10 @@ async function initializeServices() {
             }
         }
 
-        // Skip geocoding services initialization for Railway (will be initialized lazily)
+        // Initialize geocoding services only if database is available
         if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_GIT_COMMIT_SHA) {
             console.log('🚂 Railway mode: Skipping geocoding services (will initialize lazily)');
-        } else {
+        } else if (db) {
             // Geocoding Service
             console.log('🌍 Initializing geocoding service...');
             try {
@@ -488,6 +500,8 @@ async function initializeServices() {
                 console.error('❌ Geocoding queue failed:', queueError.message);
                 throw queueError;
             }
+        } else {
+            console.log('⚠️  Database not available - skipping geocoding services initialization');
         }
 
         // Route Optimizer
@@ -500,31 +514,42 @@ async function initializeServices() {
             throw routeError;
         }
 
-        // Auth Service (skip full initialization for Railway)
-        console.log('🔐 Initializing auth service...');
-        try {
-            authService = new AuthService(db);
+        // Auth Service (only if database is available)
+        if (db) {
+            console.log('🔐 Initializing auth service...');
+            try {
+                authService = new AuthService(db);
 
-            // Skip auth initialization for Railway to speed up startup
-            if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_GIT_COMMIT_SHA) {
-                console.log('🚂 Railway mode: Auth service created, will initialize with database');
-            } else {
-                await authService.initialize();
+                // Skip auth initialization for Railway to speed up startup
+                if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_GIT_COMMIT_SHA) {
+                    console.log('🚂 Railway mode: Auth service created, will initialize with database');
+                } else {
+                    await authService.initialize();
+                }
+                console.log('✅ Auth service initialized');
+            } catch (authError) {
+                console.error('❌ Auth service failed:', authError.message);
+                throw authError;
             }
-            console.log('✅ Auth service initialized');
-        } catch (authError) {
-            console.error('❌ Auth service failed:', authError.message);
-            throw authError;
+        } else {
+            console.error('❌ CRITICAL: Cannot initialize Auth service - database not available');
+            console.error('   This will cause authentication to fail!');
+            // Don't throw error here to allow server to start for debugging
         }
 
-        // Auth Middleware
-        console.log('🛡️  Initializing auth middleware...');
-        try {
-            authMiddleware = new AuthMiddleware(authService);
-            console.log('✅ Auth middleware initialized');
-        } catch (middlewareError) {
-            console.error('❌ Auth middleware failed:', middlewareError.message);
-            throw middlewareError;
+        // Auth Middleware (only if auth service is available)
+        if (authService) {
+            console.log('🛡️  Initializing auth middleware...');
+            try {
+                authMiddleware = new AuthMiddleware(authService);
+                console.log('✅ Auth middleware initialized');
+            } catch (middlewareError) {
+                console.error('❌ Auth middleware failed:', middlewareError.message);
+                throw middlewareError;
+            }
+        } else {
+            console.warn('⚠️  Auth middleware not initialized - auth service not available');
+            console.warn('   Protected routes will not work properly!');
         }
 
         // Setup auth routes immediately after services are initialized
@@ -1480,13 +1505,18 @@ async function startServer() {
             console.log('   Database will be initialized lazily on first request');
         } else {
             console.log('🔧 Running database integrity check...');
-            await Promise.race([
-                checkAndFixDatabase(),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Database check timeout')), 30000)
-                )
-            ]);
-            console.log('✅ Database integrity check completed');
+            try {
+                await Promise.race([
+                    checkAndFixDatabase(),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Database check timeout')), 30000)
+                    )
+                ]);
+                console.log('✅ Database integrity check completed');
+            } catch (dbCheckError) {
+                console.warn('⚠️  Database integrity check failed:', dbCheckError.message);
+                console.warn('   Continuing startup - database issues may be resolved during initialization');
+            }
         }
 
         // Initialize services with timeout
