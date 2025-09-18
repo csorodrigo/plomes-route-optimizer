@@ -514,10 +514,18 @@ async function initializeServices() {
             throw routeError;
         }
 
-        // Auth Service (only if database is available)
-        if (db) {
+        // Auth Service (only if database is available and initialized)
+        if (db && (db.isInitialized || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_GIT_COMMIT_SHA)) {
             console.log('🔐 Initializing auth service...');
             try {
+                // For Railway, ensure database is initialized before creating auth service
+                if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_GIT_COMMIT_SHA) {
+                    if (!db.isInitialized) {
+                        console.log('🚂 Railway: Initializing database for auth service...');
+                        await db.initialize();
+                    }
+                }
+
                 authService = new AuthService(db);
 
                 // Skip auth initialization for Railway to speed up startup

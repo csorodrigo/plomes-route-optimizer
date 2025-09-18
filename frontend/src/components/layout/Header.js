@@ -58,9 +58,18 @@ const Header = () => {
             <Toolbar>
                 {/* Logo and Title */}
                 <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
-                    <Route sx={{ mr: 2, fontSize: 28 }} />
+                    <Box
+                        component="img"
+                        src="/logo.png"
+                        alt="Logo"
+                        sx={{
+                            height: 40,
+                            width: 'auto',
+                            mr: 2
+                        }}
+                    />
                     <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-                        Route Optimizer
+                        Otimizador de Rotas
                     </Typography>
                 </Box>
 
@@ -69,7 +78,7 @@ const Header = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
                             <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                                Welcome back
+                                Bem-vindo de volta
                             </Typography>
                             <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                                 {user.name}
@@ -78,7 +87,7 @@ const Header = () => {
 
                         <Chip
                             icon={<Person />}
-                            label="Authenticated"
+                            label="Autenticado"
                             size="small"
                             sx={{
                                 backgroundColor: 'rgba(255,255,255,0.2)',
@@ -143,7 +152,7 @@ const Header = () => {
                             {/* User Info Section */}
                             <Box sx={{ px: 2, py: 1 }}>
                                 <Typography variant="subtitle2" color="text.secondary">
-                                    Signed in as
+                                    Logado como
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                                     {user.email}
@@ -159,14 +168,14 @@ const Header = () => {
                                 <ListItemIcon>
                                     <AccountCircle fontSize="small" />
                                 </ListItemIcon>
-                                <ListItemText>My Profile</ListItemText>
+                                <ListItemText>Meu Perfil</ListItemText>
                             </MenuItem>
 
                             <MenuItem onClick={handleMenuClose}>
                                 <ListItemIcon>
                                     <Security fontSize="small" />
                                 </ListItemIcon>
-                                <ListItemText>Change Password</ListItemText>
+                                <ListItemText>Alterar Senha</ListItemText>
                             </MenuItem>
 
                             <Divider />
@@ -184,7 +193,7 @@ const Header = () => {
                                 <ListItemIcon>
                                     <Logout fontSize="small" sx={{ color: 'inherit' }} />
                                 </ListItemIcon>
-                                <ListItemText>Sign Out</ListItemText>
+                                <ListItemText>Sair</ListItemText>
                             </MenuItem>
                         </Menu>
                     </Box>

@@ -65,15 +65,15 @@ const Register = ({ onSwitchToLogin }) => {
         switch (strength) {
             case 0:
             case 1:
-                return { label: 'Very Weak', color: 'error' };
+                return { label: 'Muito Fraca', color: 'error' };
             case 2:
-                return { label: 'Weak', color: 'warning' };
+                return { label: 'Fraca', color: 'warning' };
             case 3:
-                return { label: 'Medium', color: 'info' };
+                return { label: 'Média', color: 'info' };
             case 4:
-                return { label: 'Strong', color: 'success' };
+                return { label: 'Forte', color: 'success' };
             case 5:
-                return { label: 'Very Strong', color: 'success' };
+                return { label: 'Muito Forte', color: 'success' };
             default:
                 return { label: '', color: 'primary' };
         }
@@ -83,29 +83,29 @@ const Register = ({ onSwitchToLogin }) => {
         const newErrors = {};
 
         if (!formData.name.trim()) {
-            newErrors.name = 'Full name is required';
+            newErrors.name = 'Nome completo é obrigatório';
         } else if (formData.name.trim().length < 2) {
-            newErrors.name = 'Name must be at least 2 characters long';
+            newErrors.name = 'Nome deve ter pelo menos 2 caracteres';
         }
 
         if (!formData.email) {
-            newErrors.email = 'Email is required';
+            newErrors.email = 'Email é obrigatório';
         } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-            newErrors.email = 'Please enter a valid email address';
+            newErrors.email = 'Por favor, insira um endereço de email válido';
         }
 
         if (!formData.password) {
-            newErrors.password = 'Password is required';
+            newErrors.password = 'Senha é obrigatória';
         } else if (formData.password.length < 8) {
-            newErrors.password = 'Password must be at least 8 characters long';
+            newErrors.password = 'Senha deve ter pelo menos 8 caracteres';
         } else if (!/(?=.*[a-zA-Z])(?=.*\d)/.test(formData.password)) {
-            newErrors.password = 'Password must contain at least one letter and one number';
+            newErrors.password = 'Senha deve conter pelo menos uma letra e um número';
         }
 
         if (!formData.confirmPassword) {
-            newErrors.confirmPassword = 'Please confirm your password';
+            newErrors.confirmPassword = 'Por favor, confirme sua senha';
         } else if (formData.password !== formData.confirmPassword) {
-            newErrors.confirmPassword = 'Passwords do not match';
+            newErrors.confirmPassword = 'Senhas não coincidem';
         }
 
         setErrors(newErrors);
@@ -167,19 +167,22 @@ const Register = ({ onSwitchToLogin }) => {
             >
                 <CardContent sx={{ padding: 4 }}>
                     <Box sx={{ textAlign: 'center', mb: 3 }}>
-                        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
-                            <Logo
-                                size="large"
-                                showText={true}
-                                variant="h5"
-                                color="primary.main"
-                            />
-                        </Box>
+                        <Box
+                            component="img"
+                            src="/logo.png"
+                            alt="Logo"
+                            sx={{
+                                width: 120,
+                                height: 'auto',
+                                mb: 2,
+                                maxWidth: '100%'
+                            }}
+                        />
                         <Typography variant="h4" component="h1" gutterBottom>
-                            {t('auth.createAccount')}
+                            Criar Conta
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            {t('auth.joinMessage')}
+                            Junte-se ao nosso sistema de otimização de rotas
                         </Typography>
                     </Box>
 
@@ -193,7 +196,7 @@ const Register = ({ onSwitchToLogin }) => {
                         <TextField
                             fullWidth
                             name="name"
-                            label="Full Name"
+                            label="Nome Completo"
                             type="text"
                             value={formData.name}
                             onChange={handleChange}
@@ -214,7 +217,7 @@ const Register = ({ onSwitchToLogin }) => {
                         <TextField
                             fullWidth
                             name="email"
-                            label="Email Address"
+                            label="Endereço de Email"
                             type="email"
                             value={formData.email}
                             onChange={handleChange}
@@ -234,7 +237,7 @@ const Register = ({ onSwitchToLogin }) => {
                         <TextField
                             fullWidth
                             name="password"
-                            label="Password"
+                            label="Senha"
                             type={showPassword ? 'text' : 'password'}
                             value={formData.password}
                             onChange={handleChange}
@@ -266,7 +269,7 @@ const Register = ({ onSwitchToLogin }) => {
                             <Box sx={{ mt: 1, mb: 1 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                                     <Typography variant="body2" color="text.secondary">
-                                        Password strength: 
+                                        Força da senha:
                                     </Typography>
                                     <Typography 
                                         variant="body2" 
@@ -288,7 +291,7 @@ const Register = ({ onSwitchToLogin }) => {
                         <TextField
                             fullWidth
                             name="confirmPassword"
-                            label="Confirm Password"
+                            label="Confirmar Senha"
                             type={showConfirmPassword ? 'text' : 'password'}
                             value={formData.confirmPassword}
                             onChange={handleChange}
@@ -335,13 +338,13 @@ const Register = ({ onSwitchToLogin }) => {
                             {loading ? (
                                 <CircularProgress size={24} color="inherit" />
                             ) : (
-                                'Create Account'
+                                'Criar Conta'
                             )}
                         </Button>
 
                         <Box sx={{ textAlign: 'center' }}>
                             <Typography variant="body2" color="text.secondary">
-                                Already have an account?{' '}
+                                Já tem uma conta?{' '}
                                 <Link
                                     component="button"
                                     type="button"
@@ -351,7 +354,7 @@ const Register = ({ onSwitchToLogin }) => {
                                         '&:hover': { textDecoration: 'underline' }
                                     }}
                                 >
-                                    Sign in here
+                                    Faça login aqui
                                 </Link>
                             </Typography>
                         </Box>

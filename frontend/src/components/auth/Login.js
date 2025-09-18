@@ -52,13 +52,13 @@ const Login = ({ onSwitchToRegister }) => {
         const newErrors = {};
 
         if (!formData.email) {
-            newErrors.email = 'Email is required';
+            newErrors.email = 'Email é obrigatório';
         } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-            newErrors.email = 'Please enter a valid email';
+            newErrors.email = 'Por favor, insira um email válido';
         }
 
         if (!formData.password) {
-            newErrors.password = 'Password is required';
+            newErrors.password = 'Senha é obrigatória';
         }
 
         setErrors(newErrors);
@@ -114,18 +114,22 @@ const Login = ({ onSwitchToRegister }) => {
             >
                 <CardContent sx={{ padding: 4 }}>
                     <Box sx={{ textAlign: 'center', mb: 3 }}>
-                        <LoginIcon
+                        <Box
+                            component="img"
+                            src="/logo.png"
+                            alt="Logo"
                             sx={{
-                                fontSize: 48,
-                                color: 'primary.main',
-                                mb: 2
+                                width: 120,
+                                height: 'auto',
+                                mb: 2,
+                                maxWidth: '100%'
                             }}
                         />
                         <Typography variant="h4" component="h1" gutterBottom>
-                            Welcome Back
+                            Bem-vindo de volta
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Sign in to access your route optimization dashboard
+                            Faça login para acessar seu painel de otimização de rotas
                         </Typography>
                     </Box>
 
@@ -139,7 +143,7 @@ const Login = ({ onSwitchToRegister }) => {
                         <TextField
                             fullWidth
                             name="email"
-                            label="Email Address"
+                            label="Endereço de Email"
                             type="email"
                             value={formData.email}
                             onChange={handleChange}
@@ -160,7 +164,7 @@ const Login = ({ onSwitchToRegister }) => {
                         <TextField
                             fullWidth
                             name="password"
-                            label="Password"
+                            label="Senha"
                             type={showPassword ? 'text' : 'password'}
                             value={formData.password}
                             onChange={handleChange}
@@ -207,13 +211,13 @@ const Login = ({ onSwitchToRegister }) => {
                             {loading ? (
                                 <CircularProgress size={24} color="inherit" />
                             ) : (
-                                'Sign In'
+                                'Entrar'
                             )}
                         </Button>
 
                         <Box sx={{ textAlign: 'center' }}>
                             <Typography variant="body2" color="text.secondary">
-                                Don't have an account?{' '}
+                                Não tem uma conta?{' '}
                                 <Link
                                     component="button"
                                     type="button"
@@ -223,7 +227,7 @@ const Login = ({ onSwitchToRegister }) => {
                                         '&:hover': { textDecoration: 'underline' }
                                     }}
                                 >
-                                    Sign up here
+                                    Cadastre-se aqui
                                 </Link>
                             </Typography>
                         </Box>
