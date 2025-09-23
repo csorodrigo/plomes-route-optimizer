@@ -1,0 +1,1 @@
+- sempre teste com subagentes depois de concluir as tarefas, antes de me informar que está ok.

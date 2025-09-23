@@ -1,0 +1,14 @@
+[build]
+builder = "DOCKER"
+dockerfilePath = "Dockerfile"
+watchPatterns = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json", "frontend/src/**/*", ".railway-force-rebuild"]
+
+[deploy]
+startCommand = "NODE_ENV=production node backend/server.js"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[env]
+NODE_ENV = "production"
