@@ -222,7 +222,10 @@ app.use(cors({
             const allowedProductionOrigins = [
                 'https://plomes-route-app-production.up.railway.app',
                 'https://plomes-rota-cep-production.up.railway.app', // Caso o nome seja diferente
-                'https://web-production-*.up.railway.app' // Pattern do Railway
+                'https://web-production-*.up.railway.app', // Pattern do Railway
+                'https://plomes-rota-r1knsswts-csorodrigo-2569s-projects.vercel.app', // Vercel específico
+                'https://plomes-rota-1hhevosav-csorodrigo-2569s-projects.vercel.app', // Vercel anterior
+                'https://plomes-rota-qsea6ebjg-csorodrigo-2569s-projects.vercel.app'  // Vercel anterior
             ];
             
             // Permitir requisições sem origin (same-origin, server-to-server, mobile apps)
@@ -232,9 +235,10 @@ app.use(cors({
                 return;
             }
             
-            // Verificar se é uma origem permitida ou qualquer HTTPS do Railway
-            if (allowedProductionOrigins.some(allowed => origin === allowed) || 
+            // Verificar se é uma origem permitida ou qualquer HTTPS do Railway/Vercel
+            if (allowedProductionOrigins.some(allowed => origin === allowed) ||
                 origin.includes('.up.railway.app') ||
+                origin.includes('csorodrigo-2569s-projects.vercel.app') ||
                 origin.startsWith('https://')) {
                 console.log('✅ CORS: Production origin allowed:', origin);
                 callback(null, true);
