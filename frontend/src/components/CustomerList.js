@@ -39,7 +39,7 @@ import {
   Home,
   LocationCity
 } from '@mui/icons-material';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { toast } from 'react-toastify';
 import { useTranslation } from '../utils/translations';
 import apiService from '../services/api';

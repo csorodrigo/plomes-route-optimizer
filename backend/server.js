@@ -1057,11 +1057,11 @@ app.post('/api/geocode/address', async (req, res) => {
     }
 });
 
-// Geocode CEP endpoint
+// Geocode CEP endpoint (POST)
 app.post('/api/geocoding/cep', async (req, res) => {
   try {
     const { cep } = req.body;
-    
+
     if (!cep) {
       return res.status(400).json({
         success: false,
@@ -1070,7 +1070,7 @@ app.post('/api/geocoding/cep', async (req, res) => {
     }
 
     const result = await geocodingService.geocodeByCep(cep);
-    
+
     if (result) {
       // Buscar endereço completo do ViaCEP
       const cepClean = cep.replace(/\D/g, '');
@@ -1089,11 +1089,73 @@ app.post('/api/geocoding/cep', async (req, res) => {
       } catch (e) {
         // Ignorar erro e retornar apenas coordenadas
       }
-      
+
       res.json({
         success: true,
         coordinates: result,
         address: `CEP ${cep}`
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'Could not geocode CEP'
+      });
+    }
+  } catch (error) {
+    console.error('CEP geocoding error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Geocode CEP endpoint (GET) - for getCepInfo API calls
+app.get('/api/geocoding/cep/:cep', async (req, res) => {
+  try {
+    const { cep } = req.params;
+
+    if (!cep) {
+      return res.status(400).json({
+        success: false,
+        error: 'CEP required'
+      });
+    }
+
+    // Ensure database is initialized for Railway
+    await ensureDatabaseInitialized();
+
+    const result = await geocodingService.geocodeByCep(cep);
+
+    if (result) {
+      // Buscar endereço completo do ViaCEP
+      const cepClean = cep.replace(/\D/g, '');
+      try {
+        const axios = require('axios');
+        const viacepResponse = await axios.get(`https://viacep.com.br/ws/${cepClean}/json/`);
+        if (viacepResponse.data && !viacepResponse.data.erro) {
+          const address = `${viacepResponse.data.logradouro || ''}, ${viacepResponse.data.bairro || ''}, ${viacepResponse.data.localidade} - ${viacepResponse.data.uf}`;
+
+          // Return in format expected by getCepInfo
+          res.json({
+            lat: result.lat,
+            lng: result.lng,
+            address: address.trim(),
+            provider: result.provider,
+            success: true
+          });
+          return;
+        }
+      } catch (e) {
+        // Ignorar erro e retornar apenas coordenadas
+      }
+
+      res.json({
+        lat: result.lat,
+        lng: result.lng,
+        address: `CEP ${cep}`,
+        provider: result.provider,
+        success: true
       });
     } else {
       res.status(404).json({

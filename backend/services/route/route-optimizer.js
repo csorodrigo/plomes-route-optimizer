@@ -60,7 +60,14 @@ class RouteOptimizer {
         const directions = this.generateDirections(optimizedRoute.order, points);
 
         // Obter waypoints otimizados
-        const optimizedWaypoints = optimizedRoute.order.map(idx => points[idx]);
+        const optimizedWaypoints = optimizedRoute.order.map((idx, i) => {
+            const point = points[idx];
+            // If this is the last point and returnToOrigin is true, mark it as return point
+            if (returnToOrigin && i === optimizedRoute.order.length - 1 && idx === 0) {
+                return { ...point, name: 'Origem (Retorno)', isReturn: true };
+            }
+            return point;
+        });
 
         // Se habilitado, obter rotas reais - tentar Google primeiro, depois OpenRouteService
         let realRoute = null;
@@ -172,28 +179,31 @@ class RouteOptimizer {
         let iterations = 0;
         let totalImprovement = 0;
 
+        // For round-trip routes, don't include the last element (return to origin) in swaps
+        const effectiveLength = returnToOrigin ? bestRoute.length - 1 : bestRoute.length;
+
         while (improved && iterations < this.maxIterations) {
             improved = false;
             iterations++;
 
             // Tentar todas as combinações de troca 2-opt
-            for (let i = 1; i < bestRoute.length - 2; i++) {
-                for (let j = i + 1; j < bestRoute.length; j++) {
+            for (let i = 1; i < effectiveLength - 1; i++) {
+                for (let j = i + 1; j < effectiveLength; j++) {
                     if (j - i === 1) continue;
 
-                    // Criar nova rota com a troca 2-opt
-                    const newRoute = this.twoOptSwap(bestRoute, i, j);
+                    // Criar nova rota com a troca 2-opt (preserving the last element if returnToOrigin)
+                    const newRoute = this.twoOptSwap(bestRoute, i, j, returnToOrigin);
                     const newDistance = this.calculateTotalDistance(newRoute, points);
 
                     // Se a nova rota é melhor, mantê-la
                     if (newDistance < bestDistance) {
                         const improvement = bestDistance - newDistance;
                         totalImprovement += improvement;
-                        
+
                         bestRoute = newRoute;
                         bestDistance = newDistance;
                         improved = true;
-                        
+
                         console.log(`2-opt improvement: ${improvement.toFixed(2)} km (iteration ${iterations})`);
                     }
                 }
@@ -226,16 +236,24 @@ class RouteOptimizer {
     /**
      * Realiza uma troca 2-opt
      */
-    twoOptSwap(route, i, j) {
+    twoOptSwap(route, i, j, returnToOrigin = false) {
         const newRoute = [...route];
-        
+
+        // For round-trip routes, preserve the last element (return to origin)
+        const lastElement = returnToOrigin ? newRoute[newRoute.length - 1] : null;
+
         // Reverter a seção entre i e j
         while (i < j) {
             [newRoute[i], newRoute[j]] = [newRoute[j], newRoute[i]];
             i++;
             j--;
         }
-        
+
+        // Restore the last element if it was a return to origin
+        if (returnToOrigin && lastElement !== null) {
+            newRoute[newRoute.length - 1] = lastElement;
+        }
+
         return newRoute;
     }
 

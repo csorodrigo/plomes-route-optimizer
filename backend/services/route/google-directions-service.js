@@ -16,13 +16,30 @@ class GoogleDirectionsService {
 
     /**
      * Get directions between multiple waypoints
-     * @param {Object} origin - Starting point {lat, lng}
-     * @param {Object} destination - End point {lat, lng}
-     * @param {Array} waypoints - Array of intermediate points [{lat, lng}]
+     * @param {Array} waypointsArray - Array of waypoints including origin and destination [{lat, lng}]
      * @param {Object} options - Additional options
      * @returns {Object} Route data with distance, duration, and polyline
      */
-    async getDirections(origin, destination, waypoints = [], options = {}) {
+    async getDirections(waypointsArray, options = {}) {
+        // Handle both old signature (origin, destination, waypoints) and new signature (waypointsArray)
+        let origin, destination, waypoints = [];
+
+        if (Array.isArray(waypointsArray)) {
+            // New signature: single array of all waypoints
+            if (waypointsArray.length < 2) {
+                throw new Error('At least 2 waypoints required');
+            }
+
+            origin = waypointsArray[0];
+            destination = waypointsArray[waypointsArray.length - 1];
+            waypoints = waypointsArray.slice(1, -1); // Middle waypoints
+        } else {
+            // Old signature: separate parameters
+            origin = waypointsArray;
+            destination = arguments[1];
+            waypoints = arguments[2] || [];
+            options = arguments[3] || {};
+        }
         if (!this.apiKey) {
             console.warn('⚠️  Google Maps API key not configured, falling back to straight-line calculations');
             return this.getStraightLineRoute(origin, destination, waypoints);
@@ -64,15 +81,20 @@ class GoogleDirectionsService {
             const response = await axios.get(this.baseUrl, { params });
 
             if (response.data.status === 'OK' && response.data.routes.length > 0) {
-                const route = this.parseGoogleRoute(response.data.routes[0]);
+                const parsedRoute = this.parseGoogleRoute(response.data.routes[0]);
+
+                const result = {
+                    success: true,
+                    route: parsedRoute
+                };
 
                 // Cache the result
                 this.cache.set(cacheKey, {
-                    data: route,
+                    data: result,
                     timestamp: Date.now()
                 });
 
-                return route;
+                return result;
             } else {
                 console.warn(`⚠️  Google Directions API error: ${response.data.status}`);
                 return this.getStraightLineRoute(origin, destination, waypoints);
@@ -126,21 +148,60 @@ class GoogleDirectionsService {
      * Parse Google route response
      */
     parseGoogleRoute(route) {
-        const leg = route.legs[0] || {};
+        // Calculate total distance and duration from all legs
+        let totalDistance = 0;
+        let totalDuration = 0;
+
+        route.legs.forEach(leg => {
+            totalDistance += leg.distance ? leg.distance.value : 0;
+            totalDuration += leg.duration ? leg.duration.value : 0;
+        });
 
         return {
-            distance: leg.distance ? leg.distance.value : 0, // meters
-            duration: leg.duration ? leg.duration.value : 0, // seconds
+            distance: {
+                text: `${(totalDistance / 1000).toFixed(1)} km`,
+                value: totalDistance
+            },
+            duration: {
+                text: `${Math.round(totalDuration / 60)} min`,
+                value: totalDuration
+            },
             polyline: route.overview_polyline ? route.overview_polyline.points : '',
             bounds: route.bounds,
             waypoint_order: route.waypoint_order || [],
             legs: route.legs.map(leg => ({
-                distance: leg.distance ? leg.distance.value : 0,
-                duration: leg.duration ? leg.duration.value : 0,
+                distance: {
+                    text: leg.distance ? leg.distance.text : '0 km',
+                    value: leg.distance ? leg.distance.value : 0
+                },
+                duration: {
+                    text: leg.duration ? leg.duration.text : '0 min',
+                    value: leg.duration ? leg.duration.value : 0
+                },
                 start_location: leg.start_location,
                 end_location: leg.end_location
-            }))
+            })),
+            decodedPath: this.decodePolyline(route.overview_polyline ? route.overview_polyline.points : '')
         };
+    }
+
+    /**
+     * Decode Google's polyline encoding
+     */
+    decodePolyline(encoded) {
+        if (!encoded) return [];
+
+        try {
+            const polyline = require('polyline');
+            const decoded = polyline.decode(encoded);
+            return decoded.map(point => ({
+                lat: point[0],
+                lng: point[1]
+            }));
+        } catch (error) {
+            console.warn('Error decoding Google polyline:', error);
+            return [];
+        }
     }
 
     /**
@@ -188,27 +249,49 @@ class GoogleDirectionsService {
         const estimatedDuration = Math.round((totalDistance / 1000) * 72); // seconds
 
         return {
-            distance: totalDistance,
-            duration: estimatedDuration,
-            polyline: '',
-            bounds: {
-                northeast: {
-                    lat: Math.max(origin.lat, destination.lat),
-                    lng: Math.max(origin.lng, destination.lng)
+            success: true,
+            route: {
+                distance: {
+                    text: `${(totalDistance / 1000).toFixed(1)} km`,
+                    value: totalDistance
                 },
-                southwest: {
-                    lat: Math.min(origin.lat, destination.lat),
-                    lng: Math.min(origin.lng, destination.lng)
-                }
-            },
-            waypoint_order: waypoints.map((_, index) => index),
-            legs: [{
-                distance: totalDistance,
-                duration: estimatedDuration,
-                start_location: origin,
-                end_location: destination
-            }],
-            fallback: true
+                duration: {
+                    text: `${Math.round(estimatedDuration / 60)} min`,
+                    value: estimatedDuration
+                },
+                polyline: '',
+                bounds: {
+                    northeast: {
+                        lat: Math.max(...points.map(p => p.lat)),
+                        lng: Math.max(...points.map(p => p.lng))
+                    },
+                    southwest: {
+                        lat: Math.min(...points.map(p => p.lat)),
+                        lng: Math.min(...points.map(p => p.lng))
+                    }
+                },
+                waypoint_order: waypoints.map((_, index) => index),
+                legs: points.slice(0, -1).map((point, index) => {
+                    const nextPoint = points[index + 1];
+                    const legDistance = haversineDistance(point, nextPoint);
+                    const legDuration = Math.round((legDistance / 1000) * 72);
+
+                    return {
+                        distance: {
+                            text: `${(legDistance / 1000).toFixed(1)} km`,
+                            value: legDistance
+                        },
+                        duration: {
+                            text: `${Math.round(legDuration / 60)} min`,
+                            value: legDuration
+                        },
+                        start_location: point,
+                        end_location: nextPoint
+                    };
+                }),
+                fallback: true,
+                decodedPath: points.map(p => ({ lat: p.lat, lng: p.lng }))
+            }
         };
     }
 
