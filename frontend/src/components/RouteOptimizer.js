@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents } from 'react-leaflet';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { toast } from 'react-toastify';
 
@@ -17,15 +17,8 @@ import {
   Card,
   CardContent,
   CardActions,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  ListItemSecondaryAction,
   IconButton,
   Tooltip,
-  Tabs,
-  Tab,
   Chip,
   Alert,
   CircularProgress,
@@ -35,25 +28,26 @@ import {
   DialogContent,
   DialogActions,
   Divider,
-  Badge
+  Badge,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemSecondaryAction
 } from '@mui/material';
 
 import {
   LocationOn as LocationIcon,
-  MyLocation as MyLocationIcon,
   DirectionsRun as RouteIcon,
   PictureAsPdf as PdfIcon,
   Clear as ClearIcon,
   People as PeopleIcon,
   Delete as DeleteIcon,
   DragIndicator as DragIcon,
-  Map as MapIcon,
-  List as ListIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
   Timeline as TimelineIcon,
   Speed as SpeedIcon,
-  Place as PlaceIcon
 } from '@mui/icons-material';
 
 import api from '../services/api';
@@ -137,12 +131,11 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
   const [selectedCustomers, setSelectedCustomers] = useState([]);
   const [radiusKm, setRadiusKm] = useState(10);
   const [autoOptimize, setAutoOptimize] = useState(false);
-  const [currentTab, setCurrentTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [optimizedRoute, setOptimizedRoute] = useState(null);
   const [routeStats, setRouteStats] = useState(null);
-  const [mapCenter, setMapCenter] = useState([-23.5505, -46.6333]); // São Paulo default
-  const [zoom, setZoom] = useState(10);
+  const [mapCenter, setMapCenter] = useState([-3.7319, -38.5267]); // Fortaleza-CE default
+  const [zoom, setZoom] = useState(11);
   const [showClearDialog, setShowClearDialog] = useState(false);
 
   // Load customers on component mount
@@ -251,32 +244,6 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
     }
   };
 
-  const handleCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      toast.error('Geolocalização não suportada pelo navegador');
-      return;
-    }
-
-    setLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const newOrigin = { lat: latitude, lng: longitude };
-        setOrigin(newOrigin);
-        setOriginAddress(t('routeOptimizer.currentPosition'));
-        setMapCenter([latitude, longitude]);
-        setZoom(14);
-        toast.success(t('messages.originSet'));
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Geolocation error:', error);
-        toast.error('Erro ao obter localização atual');
-        setLoading(false);
-      },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
-  };
 
   const handleOriginDrag = (newPosition) => {
     setOrigin(newPosition);
@@ -311,13 +278,24 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
   };
 
   const handleDragEnd = (result) => {
-    if (!result.destination) return;
+    // Early return if no destination or invalid drag
+    if (!result.destination || result.destination.index === result.source.index) {
+      return;
+    }
+
+    // Ensure we have a valid droppableId
+    if (result.destination.droppableId !== 'selected-customers') {
+      return;
+    }
 
     const items = Array.from(selectedCustomers);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
 
     setSelectedCustomers(items);
+
+    // Show feedback to user
+    toast.info(t('route.orderUpdated') || 'Ordem da rota atualizada');
   };
 
   const optimizeRoute = async () => {
@@ -470,7 +448,7 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
     setSelectedCustomers([]);
     setOptimizedRoute(null);
     setRouteStats(null);
-    setMapCenter([-23.5505, -46.6333]);
+    setMapCenter([-3.7319, -38.5267]);
     setZoom(10);
     setShowClearDialog(false);
     toast.success('Dados limpos com sucesso');
@@ -508,20 +486,9 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
             />
           </Grid>
 
-          <Grid item xs={12} md={3}>
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<MyLocationIcon />}
-              onClick={handleCurrentLocation}
-              disabled={loading}
-            >
-              {t('routeOptimizer.currentPosition')}
-            </Button>
-          </Grid>
 
           {origin && (
-            <Grid item xs={12} md={5}>
+            <Grid item xs={12} md={8}>
               <Alert severity="info" sx={{ display: 'flex', alignItems: 'center' }}>
                 <LocationIcon sx={{ mr: 1 }} />
                 <Box>
@@ -716,68 +683,106 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
               </Typography>
 
               <Box sx={{ height: '200px', overflow: 'auto' }}>
-                <DragDropContext onDragEnd={handleDragEnd}>
-                  <Droppable droppableId="selected-customers">
-                    {(provided) => (
-                      <List
-                        {...provided.droppableProps}
-                        ref={provided.innerRef}
-                        dense
-                      >
-                        {selectedCustomers.map((customer, index) => (
-                          <Draggable
-                            key={customer.id}
-                            draggableId={customer.id.toString()}
-                            index={index}
-                          >
-                            {(provided, snapshot) => (
-                              <ListItem
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                sx={{
-                                  border: '1px solid',
-                                  borderColor: snapshot.isDragging ? 'primary.main' : 'divider',
-                                  borderRadius: 1,
-                                  mb: 1,
-                                  backgroundColor: snapshot.isDragging ? 'action.hover' : 'background.paper'
-                                }}
-                              >
-                                <ListItemIcon {...provided.dragHandleProps}>
-                                  <DragIcon />
-                                </ListItemIcon>
+                {selectedCustomers.length > 0 ? (
+                  <DragDropContext onDragEnd={handleDragEnd}>
+                    <Droppable droppableId="selected-customers" type="CUSTOMER">
+                      {(provided, snapshot) => (
+                        <List
+                          {...provided.droppableProps}
+                          ref={provided.innerRef}
+                          dense
+                          sx={{
+                            backgroundColor: snapshot.isDraggingOver ? 'action.hover' : 'transparent',
+                            minHeight: '50px',
+                            borderRadius: 1,
+                            transition: 'background-color 0.2s ease'
+                          }}
+                        >
+                          {selectedCustomers.map((customer, index) => (
+                            <Draggable
+                              key={`customer-${customer.id}`}
+                              draggableId={`customer-${customer.id}`}
+                              index={index}
+                              isDragDisabled={loading}
+                            >
+                              {(provided, snapshot) => (
+                                <ListItem
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  sx={{
+                                    border: '1px solid',
+                                    borderColor: snapshot.isDragging ? 'primary.main' : 'divider',
+                                    borderRadius: 1,
+                                    mb: 1,
+                                    backgroundColor: snapshot.isDragging ? 'primary.light' : 'background.paper',
+                                    transform: snapshot.isDragging ? 'rotate(5deg)' : 'none',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: snapshot.isDragging ? 3 : 1,
+                                    opacity: snapshot.isDragging ? 0.9 : 1
+                                  }}
+                                >
+                                  <ListItemIcon {...provided.dragHandleProps}>
+                                    <DragIcon color={loading ? 'disabled' : 'action'} />
+                                  </ListItemIcon>
 
-                                <ListItemText
-                                  primary={
-                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                      <Chip
-                                        label={index + 1}
-                                        size="small"
-                                        color="primary"
-                                        sx={{ mr: 1, minWidth: 24 }}
-                                      />
-                                      {customer.name}
-                                    </Box>
-                                  }
-                                  secondary={customer.city}
-                                />
+                                  <ListItemText
+                                    primary={
+                                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                        <Chip
+                                          label={index + 1}
+                                          size="small"
+                                          color="primary"
+                                          sx={{ mr: 1, minWidth: 28, height: 20 }}
+                                        />
+                                        <Typography variant="body2" noWrap>
+                                          {customer.name}
+                                        </Typography>
+                                      </Box>
+                                    }
+                                    secondary={
+                                      <Typography variant="caption" color="text.secondary" noWrap>
+                                        {customer.city}
+                                      </Typography>
+                                    }
+                                  />
 
-                                <ListItemSecondaryAction>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => toggleCustomerSelection(customer)}
-                                  >
-                                    <DeleteIcon />
-                                  </IconButton>
-                                </ListItemSecondaryAction>
-                              </ListItem>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                      </List>
-                    )}
-                  </Droppable>
-                </DragDropContext>
+                                  <ListItemSecondaryAction>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => toggleCustomerSelection(customer)}
+                                      disabled={loading}
+                                      color="error"
+                                    >
+                                      <DeleteIcon />
+                                    </IconButton>
+                                  </ListItemSecondaryAction>
+                                </ListItem>
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
+                        </List>
+                      )}
+                    </Droppable>
+                  </DragDropContext>
+                ) : (
+                  <Box
+                    sx={{
+                      height: '100px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '2px dashed',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                      backgroundColor: 'grey.50'
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      {t('routeOptimizer.selectCustomersHint') || 'Selecione clientes no mapa ou na lista'}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             </Box>
           </Paper>
@@ -786,19 +791,9 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
         {/* Right Panel - Map and Customer List */}
         <Grid item xs={12} md={8}>
           <Paper sx={{ height: '100%', overflow: 'hidden' }}>
-            <Tabs
-              value={currentTab}
-              onChange={(e, newValue) => setCurrentTab(newValue)}
-              sx={{ borderBottom: 1, borderColor: 'divider' }}
-            >
-              <Tab icon={<MapIcon />} label={t('routeOptimizer.map')} />
-              <Tab icon={<ListIcon />} label={t('routeOptimizer.customerListTab')} />
-            </Tabs>
-
-            <Box sx={{ height: 'calc(100% - 48px)' }}>
-              {currentTab === 0 ? (
-                // Map Tab
-                <MapContainer
+            <Box sx={{ height: '100%' }}>
+              {/* Map View */}
+              <MapContainer
                   center={mapCenter}
                   zoom={zoom}
                   style={{ height: '100%', width: '100%' }}
@@ -871,68 +866,19 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
                       </Marker>
                     );
                   })}
+
+                  {/* Route visualization - Linha vermelha sólida e grossa */}
+                  {optimizedRoute && optimizedRoute.realRoute && optimizedRoute.realRoute.decodedPath && (
+                    <Polyline
+                      positions={optimizedRoute.realRoute.decodedPath.map(p => [p.lat, p.lng])}
+                      pathOptions={{
+                        color: '#FF0000',
+                        weight: 6,
+                        opacity: 1.0
+                      }}
+                    />
+                  )}
                 </MapContainer>
-              ) : (
-                // Customer List Tab
-                <Box sx={{ p: 2, height: '100%', overflow: 'auto' }}>
-                  <Typography variant="h6" gutterBottom>
-                    {t('routeOptimizer.customersInRadius')} ({filteredCustomers.length})
-                  </Typography>
-
-                  <List>
-                    {filteredCustomers.map((customer) => {
-                      const isSelected = selectedCustomers.some(c => c.id === customer.id);
-                      const distance = origin ? calculateDistance(
-                        origin.lat,
-                        origin.lng,
-                        parseFloat(customer.latitude),
-                        parseFloat(customer.longitude)
-                      ) : 0;
-
-                      return (
-                        <ListItem
-                          key={customer.id}
-                          sx={{
-                            border: '1px solid',
-                            borderColor: isSelected ? 'primary.main' : 'divider',
-                            borderRadius: 1,
-                            mb: 1,
-                            backgroundColor: isSelected ? 'primary.light' : 'background.paper'
-                          }}
-                        >
-                          <ListItemIcon>
-                            <PlaceIcon color={isSelected ? 'primary' : 'action'} />
-                          </ListItemIcon>
-
-                          <ListItemText
-                            primary={customer.name}
-                            secondary={
-                              <Box>
-                                <Typography variant="body2">
-                                  {customer.address}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {customer.city} - {distance.toFixed(1)}km
-                                </Typography>
-                              </Box>
-                            }
-                          />
-
-                          <ListItemSecondaryAction>
-                            <Button
-                              variant={isSelected ? "outlined" : "contained"}
-                              size="small"
-                              onClick={() => toggleCustomerSelection(customer)}
-                            >
-                              {isSelected ? t('buttons.selected') : t('buttons.select')}
-                            </Button>
-                          </ListItemSecondaryAction>
-                        </ListItem>
-                      );
-                    })}
-                  </List>
-                </Box>
-              )}
             </Box>
           </Paper>
         </Grid>

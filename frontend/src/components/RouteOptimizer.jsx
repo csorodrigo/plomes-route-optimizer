@@ -44,7 +44,7 @@ import {
   Download,
   DragIndicator
 } from '@mui/icons-material';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import Logo from './common/Logo';
 import api from '../services/api';
 import pdfExportService from '../services/pdfExportService.js';
@@ -544,29 +544,33 @@ const RouteInfoCard = ({ route, customers, origin, onExportPDF, loading, onRoute
           </Typography>
 
           {/* PDF Export Button */}
-          {onExportPDF && (
-            <Button
-              variant="contained"
-              startIcon={<Download />}
-              onClick={onExportPDF}
-              disabled={loading}
-              size="small"
-              sx={{
-                backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                color: 'white',
-                backdropFilter: 'blur(10px)',
-                '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.25)'
-                },
-                '&:disabled': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  color: 'rgba(255, 255, 255, 0.5)'
-                }
-              }}
-            >
-              {t('pdf.exportPDF')}
-            </Button>
-          )}
+          <Button
+            variant="contained"
+            startIcon={<PictureAsPdf />}
+            onClick={onExportPDF || (() => console.warn('PDF export function not available'))}
+            disabled={loading || !onExportPDF}
+            size="medium"
+            sx={{
+              backgroundColor: '#d32f2f',
+              color: 'white',
+              fontWeight: 'bold',
+              boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+              border: '2px solid white',
+              '&:hover': {
+                backgroundColor: '#b71c1c',
+                boxShadow: '0 6px 12px rgba(0,0,0,0.4)',
+                transform: 'translateY(-1px)'
+              },
+              '&:disabled': {
+                backgroundColor: 'rgba(150, 150, 150, 0.8)',
+                color: 'rgba(255, 255, 255, 0.7)',
+                border: '2px solid rgba(255, 255, 255, 0.5)'
+              }
+            }}
+            title={onExportPDF ? "Exportar rota como PDF" : "Função PDF não está disponível - primeiro otimize uma rota"}
+          >
+            📄 {t('pdf.exportPDF')}
+          </Button>
         </Box>
       </CardContent>
     </Card>
@@ -593,7 +597,7 @@ const RouteOptimizer = () => {
     geocoded: 0,
     filtered: 0
   });
-  const [mapCenter, setMapCenter] = useState([-3.7172, -38.5434]); // Fortaleza
+  const [mapCenter, setMapCenter] = useState([-3.7319, -38.5267]); // Fortaleza-CE
   const [mapZoom, setMapZoom] = useState(11);
   const [autoOptimize, setAutoOptimize] = useState(false);
 
@@ -768,6 +772,9 @@ const RouteOptimizer = () => {
 
       if (response.success) {
         const { route } = response;
+        console.log('🗺️ Route optimization response:', route);
+        console.log('🗺️ Real route data:', route.realRoute);
+
         setRoute(route);
 
         // Extract customer order from route waypoints
@@ -875,7 +882,7 @@ const RouteOptimizer = () => {
       current = next;
     }
 
-    route.push({...start, name: 'Origem'});
+    // Não retorna ao ponto inicial - rota otimizada sequencial
     return route;
   };
 
@@ -1195,7 +1202,7 @@ const RouteOptimizer = () => {
           {origin && (
             <Paper sx={{ mt: 1, p: 2, backgroundColor: theme.palette.info.light, color: theme.palette.info.contrastText }}>
               <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>
-                📍 {t('routeOptimizer.currentPosition')}:
+                📍 Origem definida:
               </Typography>
               <Typography variant="body2" sx={{ fontFamily: 'monospace', mb: 1 }}>
                 Lat: {origin.lat.toFixed(6)}, Lng: {origin.lng.toFixed(6)}
@@ -1283,16 +1290,47 @@ const RouteOptimizer = () => {
               width: '100%',
               mb: 1.25,
               backgroundColor: '#d32f2f',
+              color: 'white',
+              fontWeight: 'bold',
+              fontSize: '14px',
+              boxShadow: '0 3px 6px rgba(0,0,0,0.2)',
               '&:hover': {
-                backgroundColor: '#b71c1c'
+                backgroundColor: '#b71c1c',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+                transform: 'translateY(-1px)'
               },
               '&:disabled': {
-                backgroundColor: theme.palette.grey[400]
+                backgroundColor: theme.palette.grey[400],
+                color: theme.palette.grey[600],
+                boxShadow: 'none'
               }
             }}
+            title={
+              !origin ? "Primeiro defina uma origem (CEP)" :
+              !route ? "Primeiro otimize uma rota" :
+              loading ? "Gerando relatório..." :
+              "Exportar rota como PDF"
+            }
           >
             📄 {t('routeOptimizer.exportPDF')}
           </Button>
+
+          {/* Help text for disabled PDF button */}
+          {(!route || !origin) && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                display: 'block',
+                mb: 1,
+                fontSize: '11px',
+                fontStyle: 'italic',
+                textAlign: 'center'
+              }}
+            >
+              💡 Para exportar PDF: {!origin ? "1) Defina origem" : "✓ Origem OK"} → {!route ? "2) Otimize rota" : "✓ Rota OK"}
+            </Typography>
+          )}
           <button
             style={{
               background: theme.palette.error.main,
@@ -1346,7 +1384,7 @@ const RouteOptimizer = () => {
                     ref={provided.innerRef}
                     sx={{
                       maxHeight: '300px',
-                      // Remove overflow properties to prevent conflicts with react-beautiful-dnd
+                      // Remove overflow properties to prevent conflicts with @hello-pangea/dnd
                       overflow: 'visible',
                       border: `2px ${snapshot.isDraggingOver ? 'dashed' : 'solid'} ${snapshot.isDraggingOver ? theme.palette.primary.main : theme.palette.divider}`,
                       borderRadius: '4px',
@@ -1630,19 +1668,95 @@ const RouteOptimizer = () => {
             return markers;
           })()}
           
-          {route && route.waypoints.length > 0 && (
-            <Polyline
-              positions={
-                route.realRoute && route.realRoute.decodedPath && route.realRoute.decodedPath.length > 0
-                  ? route.realRoute.decodedPath.map(p => [p.lat, p.lng])
-                  : route.waypoints.map(w => [w.lat, w.lng])
-              }
-              color="#007bff"
-              weight={4}
-              opacity={0.7}
-            />
-          )}
+          {/* Test Polyline (for debugging) */}
+
+          {/* Route Polyline Rendering - Simplified and Robust */}
+          {route && route.waypoints && route.waypoints.length > 1 && (() => {
+            console.log('🗺️ POLYLINE RENDER - Simplified Logic:', {
+              hasRoute: !!route,
+              waypointsCount: route.waypoints?.length,
+              hasRealRoute: !!route.realRoute,
+              hasDecodedPath: !!route.realRoute?.decodedPath,
+              decodedPathLength: route.realRoute?.decodedPath?.length
+            });
+
+            return (
+              <>
+                {/* DEBUG: Test polyline to verify rendering works */}
+                {process.env.NODE_ENV === 'development' && (() => {
+                  console.log('🗺️ Rendering DEBUG green test polyline');
+                  return null; // Debug polyline removida
+                })()}
+
+                {/* Primary Route: Real route polyline (Google/OpenRoute roads) */}
+                {route.realRoute && route.realRoute.decodedPath && route.realRoute.decodedPath.length > 1 && (() => {
+                  console.log('🗺️ Rendering REAL ROUTE red polyline with', route.realRoute.decodedPath.length, 'points');
+                  console.log('🗺️ First 3 coords:', route.realRoute.decodedPath.slice(0, 3));
+                  return (
+                    <Polyline
+                      positions={route.realRoute.decodedPath.map(p => [p.lat, p.lng])}
+                      color="#FF0000"
+                      weight={12}
+                      opacity={1.0}
+                    />
+                  );
+                })()}
+
+              </>
+            );
+          })()}
         </MapContainer>
+
+        {/* Debug Info for Polyline (only in development) */}
+        {process.env.NODE_ENV === 'development' && route && (
+          <Paper
+            elevation={4}
+            sx={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              p: 2,
+              zIndex: 1000,
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              maxWidth: '300px',
+              fontSize: '11px'
+            }}
+          >
+            <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'orange', fontSize: '12px' }}>
+              🐛 Debug: Polyline Status
+            </Typography>
+
+            <Typography variant="caption" sx={{ display: 'block', mt: 1, color: route.realRoute ? 'green' : 'red' }}>
+              ✓ Real Route: {route.realRoute ? 'Available' : 'Not Available'}
+            </Typography>
+
+            {route.realRoute && (
+              <>
+                <Typography variant="caption" sx={{ display: 'block', color: 'blue' }}>
+                  📍 Decoded Points: {route.realRoute.decodedPath ? route.realRoute.decodedPath.length : 0}
+                </Typography>
+                <Typography variant="caption" sx={{ display: 'block', color: 'blue' }}>
+                  🛣️ Distance: {route.realRoute.distance?.text || 'N/A'}
+                </Typography>
+                <Typography variant="caption" sx={{ display: 'block', color: 'blue' }}>
+                  ⏱️ Duration: {route.realRoute.duration?.text || 'N/A'}
+                </Typography>
+              </>
+            )}
+
+            <Typography variant="caption" sx={{ display: 'block', color: 'purple' }}>
+              📌 Waypoints: {route.waypoints ? route.waypoints.length : 0}
+            </Typography>
+
+            <Typography variant="caption" sx={{ display: 'block', mt: 1, fontSize: '10px', fontStyle: 'italic' }}>
+              Expected: {route.realRoute?.decodedPath?.length > 1 ? 'Red polyline (real route)' : 'Blue dashed polyline (waypoints)'} + Green test line
+            </Typography>
+
+            <Typography variant="caption" sx={{ display: 'block', mt: 1, fontSize: '10px', fontWeight: 'bold', color: route.realRoute?.decodedPath?.length > 1 ? 'green' : 'orange' }}>
+              Status: {route.realRoute?.decodedPath?.length > 1 ? '✅ Real polyline should render' : '⚠️ Fallback polyline should render'}
+            </Typography>
+          </Paper>
+        )}
 
         {/* Legend */}
         <Paper
