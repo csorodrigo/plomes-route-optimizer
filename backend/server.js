@@ -1417,6 +1417,37 @@ app.post('/api/distance', (req, res) => {
 setupAuthRoutes();
 
 // Serve React app for all other routes (but NOT API routes)
+// Emergency login route for Vercel (direct route)
+app.post('/api/auth/login', express.json(), async (req, res) => {
+    try {
+        console.log('🚨 Emergency login route called');
+        const { email, password } = req.body;
+
+        // Basic hardcoded check for testing
+        if (email === 'gustavo.canuto@ciaramaquinas.com.br' && password === 'ciara123@') {
+            console.log('✅ Emergency login success');
+            res.json({
+                success: true,
+                message: 'Login successful (emergency route)',
+                user: { email: email },
+                token: 'emergency-token-123'
+            });
+        } else {
+            console.log('❌ Emergency login failed');
+            res.status(401).json({
+                success: false,
+                message: 'Invalid credentials'
+            });
+        }
+    } catch (error) {
+        console.error('💥 Emergency login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+
 app.get('*', (req, res, next) => {
     // Skip this handler for API routes completely - let them 404 naturally if not found
     if (req.path.startsWith('/api/')) {
