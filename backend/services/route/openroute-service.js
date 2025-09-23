@@ -1,5 +1,5 @@
 const axios = require('axios');
-const polyline = require('polyline');
+const polyline = require('@mapbox/polyline');
 
 class OpenRouteService {
     constructor() {

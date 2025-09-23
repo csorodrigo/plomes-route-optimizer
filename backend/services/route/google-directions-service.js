@@ -192,7 +192,7 @@ class GoogleDirectionsService {
         if (!encoded) return [];
 
         try {
-            const polyline = require('polyline');
+            const polyline = require('@mapbox/polyline');
             const decoded = polyline.decode(encoded);
             return decoded.map(point => ({
                 lat: point[0],

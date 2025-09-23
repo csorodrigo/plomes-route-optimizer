@@ -1,4 +1,4 @@
-const Database = require('better-sqlite3');
+const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
@@ -14,6 +14,13 @@ class CacheManager {
 
     initSQLite() {
         try {
+            // No ambiente de produção (Vercel), usar apenas cache em memória
+            if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+                console.log('🎯 Production mode: Using memory-only cache');
+                this.layers.sqlite = null;
+                return;
+            }
+
             // Criar diretório se não existir
             const cacheDir = path.join(process.cwd(), 'cache');
             if (!fs.existsSync(cacheDir)) {
@@ -21,10 +28,10 @@ class CacheManager {
             }
 
             // Inicializar banco persistente
-            this.layers.sqlite = new Database(path.join(cacheDir, 'persistent.db'));
-            
+            this.layers.sqlite = new sqlite3.Database(path.join(cacheDir, 'persistent.db'));
+
             // Criar tabelas
-            this.layers.sqlite.exec(`
+            this.layers.sqlite && this.layers.sqlite.exec(`
                 CREATE TABLE IF NOT EXISTS customers_cache (
                     id INTEGER PRIMARY KEY,
                     data TEXT NOT NULL,
