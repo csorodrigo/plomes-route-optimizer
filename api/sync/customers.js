@@ -154,7 +154,7 @@ export default async function handler(req, res) {
         };
 
         // Function to fetch customers from Ploome in batches (like local backend)
-        async function fetchCustomersBatch(skip = 0, top = 20) {
+        async function fetchCustomersBatch(skip = 0, top = 100) {
             try {
                 // Build URL with proper filtering for CLIENT_TAG_ID (like local backend)
                 let ploomeUrl = `${PLOOMES_BASE_URL}/Contacts?$top=${top}&$skip=${skip}`;
@@ -219,10 +219,10 @@ export default async function handler(req, res) {
         // Process customers in batches to respect serverless timeout limits
         let allCustomers = [];
         let skip = 0;
-        const batchSize = 100; // Larger batches for better performance
+        const batchSize = 200; // Larger batches for better performance
         let hasMore = true;
         let totalFetched = 0;
-        const maxCustomers = 2500; // Increased limit to handle 2000+ customers properly
+        const maxCustomers = 10000; // Removed artificial 300 limit - process ALL customers
 
         console.log('🚀 Starting customer sync with optimized batch processing...');
         console.log(`📋 Configuration: batchSize=${batchSize}, maxCustomers=${maxCustomers}`);

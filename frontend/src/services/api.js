@@ -4,7 +4,7 @@ import { API_URL } from '../config/config';
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 30000,
+  timeout: 60000, // Increased default timeout for large datasets
   headers: {
     'Content-Type': 'application/json',
   },
@@ -69,7 +69,10 @@ const apiService = {
   getStatistics: () => api.get('/api/statistics'),
 
   // Customer management
-  getCustomers: (params = {}) => api.get('/api/customers', { params }),
+  getCustomers: (params = {}) => api.get('/api/customers', {
+    params,
+    timeout: 60000 // Increased timeout for large datasets
+  }),
   
   getCustomersInRadius: (lat, lng, radius) => 
     api.get('/api/customers/radius', { 

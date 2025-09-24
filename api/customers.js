@@ -273,8 +273,8 @@ export default async function handler(req, res) {
 
         // Fetch customers from Ploome API with proper filtering (like local backend)
         try {
-            // CRITICAL FIX: Increase limit from 20 to handle 2000+ customers properly
-            let ploomeUrl = `${PLOOMES_BASE_URL}/Contacts?$top=2500`; // Increased limit to match sync API
+            // CRITICAL FIX: Increase limit to handle all customers (removed 300 customer limit)
+            let ploomeUrl = `${PLOOMES_BASE_URL}/Contacts?$top=5000`; // Increased limit to handle all customers
 
             // Add OData filter to get ONLY contacts that have the Cliente tag (like local backend)
             ploomeUrl += `&$expand=City,Tags`;
@@ -325,14 +325,14 @@ export default async function handler(req, res) {
             const customers = [];
             const contacts = ploomeData.value || [];
 
-            // CRITICAL FIX: Remove hardcoded 15 customer limit to handle 2000+ customers
+            // CRITICAL FIX: Remove ALL hardcoded customer limits - process ALL customers
             // Process in optimized batches to avoid serverless timeout
-            const maxCustomers = Math.min(contacts.length, 2500); // Process up to 2500 customers
-            const batchSize = 50; // Process in smaller batches to prevent timeout
+            const maxCustomers = contacts.length; // Process ALL customers without limit
+            const batchSize = 100; // Increased batch size for better performance
 
-            console.log(`🚀 Processing ${maxCustomers} customers in optimized batches...`);
+            console.log(`🚀 Processing ALL ${maxCustomers} customers without artificial limits...`);
 
-            for (let i = 0; i < maxCustomers; i++) { // FIXED: No longer limited to 15!
+            for (let i = 0; i < maxCustomers; i++) { // FIXED: Process ALL customers!
                 const contact = contacts[i];
 
                 // Build address string

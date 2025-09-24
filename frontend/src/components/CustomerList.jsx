@@ -33,7 +33,7 @@ const CustomerList = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState(null);
   const [geocodingProgress, setGeocodingProgress] = useState(null);
@@ -171,9 +171,16 @@ const CustomerList = () => {
       {/* Header */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h5" component="h2">
-            Lista de Clientes
-          </Typography>
+          <Box>
+            <Typography variant="h5" component="h2">
+              Lista de Clientes
+            </Typography>
+            {customers.length > 0 && (
+              <Typography variant="body2" color="text.secondary">
+                Total: {customers.length} clientes carregados
+              </Typography>
+            )}
+          </Box>
           
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
@@ -312,7 +319,7 @@ const CustomerList = () => {
             </Table>
             
             <TablePagination
-              rowsPerPageOptions={[10, 25, 50, 100]}
+              rowsPerPageOptions={[25, 50, 100, 200, 500]}
               component="div"
               count={filteredCustomers.length}
               rowsPerPage={rowsPerPage}
@@ -323,7 +330,9 @@ const CustomerList = () => {
                 setPage(0);
               }}
               labelRowsPerPage="Linhas por página:"
-              labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+              labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count === -1 ? 'muitos' : count}`}
+              showFirstButton
+              showLastButton
             />
           </>
         )}
