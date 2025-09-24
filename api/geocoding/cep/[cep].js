@@ -1,8 +1,8 @@
-// Vercel Serverless Function for CEP Geocoding
+// Vercel Serverless Function for Dynamic CEP Geocoding
 export default async function handler(req, res) {
     // Configure CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     // Handle preflight OPTIONS request
@@ -10,26 +10,19 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    // Allow both GET and POST methods
-    if (req.method !== 'POST' && req.method !== 'GET') {
+    // Only allow GET method for dynamic route
+    if (req.method !== 'GET') {
         return res.status(405).json({
             success: false,
-            message: 'Method not allowed. Use GET or POST.'
+            message: 'Method not allowed. Use GET.'
         });
     }
 
     try {
-        console.log('🚨 Vercel Serverless CEP Geocoding called');
+        console.log('🚨 Vercel Serverless Dynamic CEP Geocoding called');
 
-        // Get CEP from body (POST) or URL parameter (GET)
-        let cep;
-        if (req.method === 'POST') {
-            cep = req.body?.cep;
-        } else if (req.method === 'GET') {
-            // Extract CEP from URL path /api/geocoding/cep/[cep]
-            const urlParts = req.url.split('/');
-            cep = urlParts[urlParts.length - 1];
-        }
+        // Get CEP from URL parameter
+        const { cep } = req.query;
 
         if (!cep) {
             return res.status(400).json({
@@ -86,7 +79,7 @@ export default async function handler(req, res) {
                 source: 'viacep_mock_coords'
             };
 
-            console.log('✅ CEP geocoding successful');
+            console.log('✅ Dynamic CEP geocoding successful');
             return res.status(200).json(result);
 
         } catch (error) {
@@ -98,7 +91,7 @@ export default async function handler(req, res) {
         }
 
     } catch (error) {
-        console.error('💥 Serverless CEP error:', error);
+        console.error('💥 Serverless Dynamic CEP error:', error);
         return res.status(500).json({
             success: false,
             message: 'Server error',
