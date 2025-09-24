@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from '../utils/translations';
 import {
   MapContainer,
@@ -582,6 +582,9 @@ const RouteOptimizer = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
+  // Ref to track component mounting status
+  const isMountedRef = useRef(true);
+
   // State
   const [origin, setOrigin] = useState(null);
   const [originCep, setOriginCep] = useState('');
@@ -644,39 +647,82 @@ const RouteOptimizer = () => {
     }
   };
 
-  const setCepOrigin = async () => {
+  const setCepOrigin = useCallback(async () => {
     const cep = originCep.replace(/\D/g, '');
     if (cep.length !== 8) {
       toast.warning(t('messages.invalidCEP'));
       return;
     }
 
+    // Prevent duplicate requests
+    if (loading) {
+      console.warn('CEP request already in progress');
+      return;
+    }
+
     setLoading(true);
+
+    // Create an abort controller to cancel requests if component unmounts
+    const abortController = new AbortController();
+
     try {
-      const response = await api.geocodeAddress(cep);
-      
+      console.log('🔍 CEP Search initiated:', { cep, originCep });
+
+      const response = await api.geocodeAddress(cep, {
+        signal: abortController.signal
+      });
+
+      console.log('🔍 CEP API Response:', response);
+
       if (response.success && response.coordinates) {
         const { lat, lng } = response.coordinates;
-        
-        // Define a origem
-        setOrigin({ lat, lng, address: response.address || `CEP ${originCep}` });
-        
-        // Força atualização do centro do mapa com pequeno delay
-        setTimeout(() => {
-          setMapCenter([lat, lng]);
-          setMapZoom(15); // Zoom mais próximo para ver melhor o pin
-        }, 100);
-        
-        toast.success(`${t('messages.originSet')}: ${response.address}`);
+
+        // Validate coordinates before setting state
+        if (typeof lat === 'number' && typeof lng === 'number' &&
+            !isNaN(lat) && !isNaN(lng) &&
+            lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+
+          console.log('🔍 Setting origin coordinates:', { lat, lng });
+
+          const newOrigin = {
+            lat,
+            lng,
+            address: response.address || `CEP ${originCep}`
+          };
+
+          // Use React's batching for state updates - only if component is still mounted
+          if (isMountedRef.current) {
+            React.unstable_batchedUpdates(() => {
+              setOrigin(newOrigin);
+              setMapCenter([lat, lng]);
+              setMapZoom(15);
+            });
+          }
+
+          toast.success(`${t('messages.originSet')}: ${response.address}`);
+        } else {
+          console.error('🚨 Invalid coordinates received:', { lat, lng });
+          toast.error('Coordenadas inválidas recebidas da API');
+        }
       } else {
+        console.warn('🔍 CEP not found or invalid response:', response);
         toast.error(t('messages.cepNotFound'));
       }
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('🔍 CEP request aborted (component unmounted)');
+        return;
+      }
+
+      console.error('🚨 CEP Search Error:', error);
       toast.error(t('messages.errorSearchingCEP'));
     } finally {
-      setLoading(false);
+      // Only set loading to false if component is still mounted
+      if (isMountedRef.current && !abortController.signal.aborted) {
+        setLoading(false);
+      }
     }
-  };
+  }, [originCep, loading, t]);
 
   const toggleCustomerSelection = (customerId) => {
     const newSelected = new Set(selectedCustomers);
@@ -1091,6 +1137,19 @@ const RouteOptimizer = () => {
   useEffect(() => {
     setStats(prev => ({ ...prev, filtered: filteredCustomers.length }));
   }, [filteredCustomers.length]);
+
+  // Cleanup effect - prevent memory leaks when component unmounts
+  useEffect(() => {
+    return () => {
+      console.log('🧹 RouteOptimizer component unmounting - cleanup initiated');
+      isMountedRef.current = false;
+
+      // Clear any pending toasts
+      if (window.toast && typeof window.toast.dismiss === 'function') {
+        window.toast.dismiss();
+      }
+    };
+  }, []);
 
   // Responsive layout configuration
   const layoutConfig = {

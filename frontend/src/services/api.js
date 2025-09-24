@@ -77,7 +77,7 @@ const apiService = {
     }),
 
   // Geocoding
-  geocodeAddress: (cep) => api.get(`/api/geocoding/cep/${cep.replace(/\D/g, '')}`),
+  geocodeAddress: (cep, options = {}) => api.get(`/api/geocoding/cep/${cep.replace(/\D/g, '')}`, options),
 
   geocodeBatch: (addresses) => api.post('/api/geocoding/batch', { addresses }),
 

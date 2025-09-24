@@ -33,6 +33,7 @@ import RouteOptimizer from './RouteOptimizer';
 import Statistics from './Statistics';
 import CustomerSync from './CustomerSync';
 import CustomerList from './CustomerList';
+import ErrorBoundary from './ErrorBoundary';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -88,7 +89,11 @@ const MainApp = ({ initialView = 'dashboard' }) => {
       case 'customers':
         return <CustomerList />;
       case 'map':
-        return <RouteOptimizer onRouteOptimized={fetchStatistics} />;
+        return (
+          <ErrorBoundary>
+            <RouteOptimizer onRouteOptimized={fetchStatistics} />
+          </ErrorBoundary>
+        );
       case 'sync':
         return <CustomerSync onSyncComplete={handleSyncComplete} />;
       case 'dashboard':
