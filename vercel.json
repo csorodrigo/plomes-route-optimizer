@@ -51,7 +51,7 @@
   "env": {
     "NODE_ENV": "production",
     "PLOOMES_API_KEY": "A7EEF49A41433800AFDF42AE5BBF22755D1FC4B863C9B70A87F4CE300F38164058CD54A3E8590E78CDBF986FC8C0F9F4E7FF32884F3D37D58178DD8749EFA1D3",
-    "PLOOMES_BASE_URL": "https://ciaedmaquinas.ploomes.com/api/v2",
+    "PLOOMES_BASE_URL": "https://public-api2.ploomes.com",
     "CLIENT_TAG_ID": "40006184",
     "JWT_SECRET": "super-secret-jwt-key-for-production-please-change-this-in-real-deployment-123456789",
     "DATABASE_URL": "sqlite:./tmp/app.db"
