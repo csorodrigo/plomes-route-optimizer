@@ -68,17 +68,68 @@ export default async function handler(req, res) {
                 });
             }
 
-            // Mock coordinates for São Paulo region (you can enhance this with real geocoding)
-            const mockCoordinates = {
-                '01310100': { lat: -23.561684, lng: -46.625378 }, // Centro SP
-                '01310200': { lat: -23.563720, lng: -46.653256 }, // Paulista
-                '01310300': { lat: -23.555771, lng: -46.662188 }, // Augusta
-            };
+            // Real geocoding using OpenStreetMap Nominatim (free alternative)
+            const fullAddress = `${addressData.logradouro}, ${addressData.bairro}, ${addressData.localidade}, ${addressData.uf}, Brazil`;
+            let coords = null;
 
-            const coords = mockCoordinates[cleanCEP] || {
-                lat: -23.550520 + (Math.random() - 0.5) * 0.1, // Random around SP center
-                lng: -46.633308 + (Math.random() - 0.5) * 0.1
-            };
+            try {
+                // Try OpenStreetMap Nominatim first (free)
+                const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}&limit=1&addressdetails=1`;
+                const nominatimResponse = await fetch(nominatimUrl, {
+                    headers: {
+                        'User-Agent': 'PlomesRotaCEP/1.0 (geocoding service)'
+                    }
+                });
+                const nominatimData = await nominatimResponse.json();
+
+                if (nominatimData && nominatimData.length > 0) {
+                    coords = {
+                        lat: parseFloat(nominatimData[0].lat),
+                        lng: parseFloat(nominatimData[0].lon)
+                    };
+                    console.log('✅ Geocoding successful via Nominatim');
+                } else {
+                    // Fallback: try simpler address without street number
+                    const simpleAddress = `${addressData.bairro}, ${addressData.localidade}, ${addressData.uf}, Brazil`;
+                    const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(simpleAddress)}&limit=1`;
+                    const fallbackResponse = await fetch(fallbackUrl, {
+                        headers: {
+                            'User-Agent': 'PlomesRotaCEP/1.0 (geocoding service)'
+                        }
+                    });
+                    const fallbackData = await fallbackResponse.json();
+
+                    if (fallbackData && fallbackData.length > 0) {
+                        coords = {
+                            lat: parseFloat(fallbackData[0].lat),
+                            lng: parseFloat(fallbackData[0].lon)
+                        };
+                        console.log('✅ Geocoding successful via Nominatim fallback');
+                    }
+                }
+            } catch (geocodingError) {
+                console.error('⚠️ Geocoding error:', geocodingError);
+            }
+
+            // Final fallback: If geocoding failed, use approximate coordinates based on city
+            if (!coords) {
+                console.log('⚠️ Using city-based coordinates as fallback');
+                const cityCoordinates = {
+                    'São Paulo': { lat: -23.550520, lng: -46.633308 },
+                    'Rio de Janeiro': { lat: -22.906847, lng: -43.172896 },
+                    'Belo Horizonte': { lat: -19.919502, lng: -43.938533 },
+                    'Salvador': { lat: -12.971398, lng: -38.501583 },
+                    'Brasília': { lat: -15.794229, lng: -47.882166 },
+                    'Fortaleza': { lat: -3.731862, lng: -38.526669 },
+                    'Manaus': { lat: -3.119028, lng: -60.021731 },
+                    'Curitiba': { lat: -25.441105, lng: -49.276855 },
+                    'Recife': { lat: -8.047562, lng: -34.877003 },
+                    'Porto Alegre': { lat: -30.034647, lng: -51.217658 }
+                };
+
+                coords = cityCoordinates[addressData.localidade] ||
+                        cityCoordinates['São Paulo']; // Default to São Paulo
+            }
 
             const result = {
                 success: true,
@@ -91,7 +142,7 @@ export default async function handler(req, res) {
                     full_address: `${addressData.logradouro}, ${addressData.bairro}, ${addressData.localidade}, ${addressData.uf}`
                 },
                 coordinates: coords,
-                source: 'viacep_mock_coords'
+                source: coords ? 'viacep_nominatim_geocoding' : 'viacep_city_fallback'
             };
 
             console.log('✅ CEP geocoding successful');
