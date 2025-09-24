@@ -1,7 +1,7 @@
-// Vercel Serverless Function for Customers API - REAL PLOOME INTEGRATION ONLY
-// NO MOCK DATA FALLBACKS PER USER REQUIREMENTS
+// Vercel Serverless Function for Customers API - Real Ploome Integration with Mock Fallback
 import https from 'https';
 import http from 'http';
+import { getMockCustomers, addMockCoordinates } from './mock-data.js';
 
 // Node.js HTTP request utility for Vercel serverless compatibility
 function makeHttpRequest(url, options = {}) {
@@ -19,7 +19,7 @@ function makeHttpRequest(url, options = {}) {
                 'User-Agent': 'PlomesRotaCEP/1.0',
                 ...options.headers
             },
-            timeout: options.timeout || 15000
+            timeout: options.timeout || 10000
         };
 
         console.log(`🔄 Making ${reqOptions.method} request to: ${url}`);
@@ -109,35 +109,18 @@ export default async function handler(req, res) {
     }
 
     try {
-        console.log('🚨 Vercel Serverless Customers API called - REAL PLOOME INTEGRATION ONLY');
+        console.log('🚨 Vercel Serverless Customers API called - Real Ploome Integration');
 
         // Get Ploome credentials from environment
         const PLOOMES_API_KEY = process.env.PLOOMES_API_KEY;
-        const PLOOMES_BASE_URL = process.env.PLOOMES_BASE_URL || 'https://public-api2.ploomes.com';
-        const CLIENT_TAG_ID = process.env.CLIENT_TAG_ID ? parseInt(process.env.CLIENT_TAG_ID) : 40006184;
-
-        console.log('🔐 Environment check:', {
-            hasApiKey: !!PLOOMES_API_KEY,
-            hasBaseUrl: !!PLOOMES_BASE_URL,
-            baseUrl: PLOOMES_BASE_URL,
-            clientTagId: CLIENT_TAG_ID,
-            apiKeyLength: PLOOMES_API_KEY ? PLOOMES_API_KEY.length : 0
-        });
+        const PLOOMES_BASE_URL = process.env.PLOOMES_BASE_URL;
+        const CLIENT_TAG_ID = process.env.CLIENT_TAG_ID;
 
         if (!PLOOMES_API_KEY || !PLOOMES_BASE_URL) {
             console.error('❌ Missing Ploome credentials');
             return res.status(500).json({
                 success: false,
-                message: 'Ploome credentials not configured',
-                details: {
-                    hasApiKey: !!PLOOMES_API_KEY,
-                    hasBaseUrl: !!PLOOMES_BASE_URL,
-                    troubleshooting: [
-                        'Check Vercel environment variables',
-                        'Verify PLOOMES_API_KEY is set',
-                        'Verify PLOOMES_BASE_URL is set'
-                    ]
-                }
+                message: 'Ploome credentials not configured'
             });
         }
 
@@ -176,18 +159,15 @@ export default async function handler(req, res) {
             }
         }
 
-        // Fetch customers from Ploome API with proper filtering (like local backend)
+        // Fetch customers from Ploome API with retry logic
         try {
-            // Build URL with proper filtering for CLIENT_TAG_ID (like local backend)
-            let ploomeUrl = `${PLOOMES_BASE_URL}/Contacts?$top=20`; // Limit for serverless performance
-
-            // Add OData filter to get ONLY contacts that have the Cliente tag (like local backend)
-            ploomeUrl += `&$expand=City,Tags`;
-            ploomeUrl += `&$filter=Tags/any(t: t/TagId eq ${CLIENT_TAG_ID})`;
-
-            console.log('🔄 Calling Ploome API with CLIENT_TAG_ID filter:', ploomeUrl);
-            console.log('🎯 Using CLIENT_TAG_ID:', CLIENT_TAG_ID);
-            console.log('🚀 This should return ONLY Cliente contacts, not all contacts');
+            const ploomeUrl = `${PLOOMES_BASE_URL}/Contacts?$top=20`; // Limit for serverless performance
+            console.log('🔄 Calling Ploome API:', ploomeUrl);
+            console.log('📊 Environment check:', {
+                hasApiKey: !!PLOOMES_API_KEY,
+                hasBaseUrl: !!PLOOMES_BASE_URL,
+                apiKeyLength: PLOOMES_API_KEY ? PLOOMES_API_KEY.length : 0
+            });
 
             const ploomeResponse = await fetchWithRetry(ploomeUrl, {
                 method: 'GET',
@@ -196,7 +176,7 @@ export default async function handler(req, res) {
                     'Accept': 'application/json',
                     'User-Key': PLOOMES_API_KEY
                 },
-                timeout: 12000 // Longer timeout for filtered requests
+                timeout: 8000 // Shorter timeout for serverless
             }, 3);
 
             if (!ploomeResponse.ok) {
@@ -205,20 +185,7 @@ export default async function handler(req, res) {
                 return res.status(500).json({
                     success: false,
                     message: `Ploome API error: ${ploomeResponse.status} ${ploomeResponse.statusText}`,
-                    details: {
-                        errorText,
-                        apiUrl: ploomeUrl,
-                        headers: {
-                            hasUserKey: !!PLOOMES_API_KEY,
-                            userKeyLength: PLOOMES_API_KEY ? PLOOMES_API_KEY.length : 0
-                        },
-                        troubleshooting: [
-                            'Verify PLOOMES_API_KEY is valid and active',
-                            'Check if CLIENT_TAG_ID exists in Ploome',
-                            'Ensure Ploome API is accessible from Vercel',
-                            'Try without OData filter if tag filtering fails'
-                        ]
-                    }
+                    details: errorText
                 });
             }
 
@@ -229,7 +196,7 @@ export default async function handler(req, res) {
             const customers = [];
             const contacts = ploomeData.value || [];
 
-            for (let i = 0; i < Math.min(contacts.length, 15); i++) { // Limit to 15 customers for serverless performance
+            for (let i = 0; i < Math.min(contacts.length, 10); i++) { // Limit to 10 customers for serverless performance
                 const contact = contacts[i];
 
                 // Build address string
@@ -259,11 +226,10 @@ export default async function handler(req, res) {
                     }
                 }
 
-                // Get coordinates for the address (enabled for real data)
+                // Get coordinates for the address (skip for faster response in serverless)
                 let coords = null;
-                if (address && address.length > 10) {
-                    coords = await geocodeAddress(address);
-                }
+                // Temporarily disable geocoding to speed up serverless response
+                // coords = await geocodeAddress(address);
 
                 // Format customer data
                 const customer = {
@@ -279,69 +245,117 @@ export default async function handler(req, res) {
                     longitude: coords ? coords.longitude : null,
                     ploome_person_id: contact.Id.toString(),
                     created_date: contact.CreateDate,
-                    last_interaction: contact.LastInteractionDate,
-                    tags: contact.Tags ? contact.Tags.map(t => ({ id: t.TagId, name: t.TagName || 'Unknown' })) : []
+                    last_interaction: contact.LastInteractionDate
                 };
 
                 customers.push(customer);
 
                 // Add small delay to respect rate limits and prevent timeout
-                if (i < Math.min(contacts.length, 15) - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 300)); // Longer delay for geocoding
+                if (i < Math.min(contacts.length, 20) - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 200)); // Slightly longer delay for serverless
                 }
             }
 
-            console.log(`✅ Successfully processed ${customers.length} real customers from Ploome`);
+            console.log(`✅ Processed ${customers.length} customers from Ploome`);
             return res.status(200).json({
                 success: true,
                 customers: customers,
                 total: customers.length,
                 total_in_ploome: contacts.length,
                 source: 'ploome_api_real_data',
-                message: 'Real customers data from Ploome API with geocoding (NO MOCK DATA)',
-                metadata: {
-                    filtered_by_client_tag: CLIENT_TAG_ID,
-                    api_url: PLOOMES_BASE_URL,
-                    geocoded_count: customers.filter(c => c.latitude && c.longitude).length,
-                    timestamp: new Date().toISOString()
-                }
+                message: 'Real customers data from Ploome API with geocoding'
             });
 
         } catch (ploomeError) {
-            console.error('💥 CRITICAL ERROR - Ploome API failed, but NO MOCK DATA FALLBACK ALLOWED');
-            console.error('⚠️ User explicitly requested NO MOCK DATA ANYWHERE');
-            console.error('Original error:', ploomeError);
+            console.error('💥 Ploome API integration error:', ploomeError);
+            console.log('🎆 Falling back to mock data...');
 
-            // Return error instead of mock data fallback (user requirement: NO MOCK DATA)
-            return res.status(500).json({
-                success: false,
-                message: 'Ploome API integration failed and mock data is disabled per user requirements',
-                error: ploomeError.message,
-                details: {
-                    type: ploomeError.name || 'NetworkError',
-                    code: ploomeError.code,
-                    apiUrl: PLOOMES_BASE_URL,
-                    clientTagId: CLIENT_TAG_ID,
+            // Fallback to mock data when Ploome API is unavailable
+            try {
+                const mockData = getMockCustomers(10);
+                const customers = [];
+
+                for (const contact of mockData.value) {
+                    // Build address string
+                    let address = '';
+                    let cep = '';
+                    let city = '';
+                    let state = '';
+
+                    if (contact.Address) {
+                        address = contact.Address.Street || '';
+                        cep = contact.Address.ZipCode || '';
+                        city = contact.Address.City || '';
+                        state = contact.Address.State || '';
+
+                        if (contact.Address.Number) {
+                            address += `, ${contact.Address.Number}`;
+                        }
+                        if (contact.Address.District) {
+                            address += `, ${contact.Address.District}`;
+                        }
+                        if (city) {
+                            address += `, ${city}`;
+                        }
+                        if (state) {
+                            address += `, ${state}`;
+                        }
+                    }
+
+                    // Add mock coordinates
+                    const coords = addMockCoordinates(contact);
+
+                    const customer = {
+                        id: contact.Id,
+                        name: contact.Name || 'Nome não informado',
+                        email: contact.Email || '',
+                        phone: contact.Phones && contact.Phones.length > 0 ? contact.Phones[0].PhoneNumber : '',
+                        address: address,
+                        cep: cep,
+                        city: city,
+                        state: state,
+                        latitude: coords.latitude,
+                        longitude: coords.longitude,
+                        ploome_person_id: contact.Id.toString(),
+                        created_date: contact.CreateDate,
+                        last_interaction: contact.LastInteractionDate
+                    };
+
+                    customers.push(customer);
+                }
+
+                console.log(`✅ Returning ${customers.length} mock customers`);
+                return res.status(200).json({
+                    success: true,
+                    customers: customers,
+                    total: customers.length,
+                    total_in_ploome: mockData['@odata.count'],
+                    source: 'mock_data_fallback',
+                    message: 'Mock customers data (Ploome API unavailable)',
+                    originalError: {
+                        message: ploomeError.message,
+                        type: ploomeError.name || 'NetworkError',
+                        code: ploomeError.code
+                    }
+                });
+
+            } catch (mockError) {
+                console.error('💥 Mock data fallback also failed:', mockError);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Both Ploome API and mock data failed',
+                    error: mockError.message,
                     timestamp: new Date().toISOString()
-                },
-                troubleshooting: [
-                    'Check if Ploome API is accessible from Vercel',
-                    'Verify PLOOMES_API_KEY is valid',
-                    'Verify PLOOMES_BASE_URL is correct',
-                    'Check CLIENT_TAG_ID exists in Ploome',
-                    'Review Vercel function logs for detailed errors',
-                    'Test Ploome API directly with curl or Postman'
-                ]
-            });
+                });
+            }
         }
 
     } catch (error) {
         console.error('💥 Serverless customers error:', error);
         return res.status(500).json({
             success: false,
-            message: 'Server error in customers API',
-            error: error.message,
-            timestamp: new Date().toISOString()
+            message: 'Server error',
+            error: error.message
         });
     }
 }
