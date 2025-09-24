@@ -115,12 +115,14 @@ export default async function handler(req, res) {
         const PLOOMES_API_KEY = process.env.PLOOMES_API_KEY;
         const PLOOMES_BASE_URL = process.env.PLOOMES_BASE_URL || 'https://public-api2.ploomes.com';
         const CLIENT_TAG_ID = process.env.CLIENT_TAG_ID ? parseInt(process.env.CLIENT_TAG_ID) : 40006184;
+        const BYPASS_TAG_FILTER = process.env.BYPASS_TAG_FILTER === 'true';
 
         console.log('🔐 Environment check:', {
             hasApiKey: !!PLOOMES_API_KEY,
             hasBaseUrl: !!PLOOMES_BASE_URL,
             baseUrl: PLOOMES_BASE_URL,
             clientTagId: CLIENT_TAG_ID,
+            bypassTagFilter: BYPASS_TAG_FILTER,
             apiKeyLength: PLOOMES_API_KEY ? PLOOMES_API_KEY.length : 0
         });
 
@@ -159,10 +161,15 @@ export default async function handler(req, res) {
 
                 // Add OData filter to get ONLY contacts that have the Cliente tag (like local backend)
                 ploomeUrl += `&$expand=City,Tags`;
-                ploomeUrl += `&$filter=Tags/any(t: t/TagId eq ${CLIENT_TAG_ID})`;
 
-                console.log('🔄 Fetching batch from Ploome with CLIENT_TAG_ID filter:', ploomeUrl);
-                console.log('🎯 Using CLIENT_TAG_ID:', CLIENT_TAG_ID);
+                if (!BYPASS_TAG_FILTER) {
+                    ploomeUrl += `&$filter=Tags/any(t: t/TagId eq ${CLIENT_TAG_ID})`;
+                    console.log('🔄 Fetching batch from Ploome WITH CLIENT_TAG_ID filter:', ploomeUrl);
+                    console.log('🎯 Using CLIENT_TAG_ID:', CLIENT_TAG_ID);
+                } else {
+                    console.log('⚠️  BYPASS_TAG_FILTER enabled - fetching ALL contacts for debugging');
+                    console.log('🔄 Fetching batch from Ploome WITHOUT filtering:', ploomeUrl);
+                }
                 console.log('📊 Pagination: skip=' + skip + ', top=' + top);
 
                 const ploomeResponse = await fetchWithRetry(ploomeUrl, {
@@ -172,8 +179,8 @@ export default async function handler(req, res) {
                         'Accept': 'application/json',
                         'User-Key': PLOOMES_API_KEY
                     },
-                    timeout: 12000 // Longer timeout for filtered requests
-                }, 2); // Reduced retries for batch operations
+                    timeout: 15000 // Increased timeout for larger batches
+                }, 3); // Standard retries for reliability
 
                 if (!ploomeResponse.ok) {
                     const errorText = await ploomeResponse.text().catch(() => 'No error details');
@@ -184,7 +191,18 @@ export default async function handler(req, res) {
                 const ploomeData = await ploomeResponse.json();
                 const contacts = ploomeData.value || [];
 
-                console.log(`✅ Batch received: ${contacts.length} contacts from Ploome`);
+                console.log(`✅ Batch ${skip/batchSize + 1} received: ${contacts.length} contacts from Ploome`);
+
+                // Add debugging for first batch to verify filtering is working
+                if (skip === 0 && contacts.length > 0) {
+                    const firstContact = contacts[0];
+                    console.log(`🔍 First contact sample:`, {
+                        id: firstContact.Id,
+                        name: firstContact.Name,
+                        hasTags: !!firstContact.Tags,
+                        tagCount: firstContact.Tags ? firstContact.Tags.length : 0
+                    });
+                }
 
                 return {
                     contacts: contacts,
@@ -201,12 +219,14 @@ export default async function handler(req, res) {
         // Process customers in batches to respect serverless timeout limits
         let allCustomers = [];
         let skip = 0;
-        const batchSize = 20; // Small batches for serverless performance
+        const batchSize = 100; // Larger batches for better performance
         let hasMore = true;
         let totalFetched = 0;
-        const maxCustomers = 50; // Limit total customers for serverless timeout
+        const maxCustomers = 2500; // Increased limit to handle 2000+ customers properly
 
-        console.log('🚀 Starting customer sync with batch processing...');
+        console.log('🚀 Starting customer sync with optimized batch processing...');
+        console.log(`📋 Configuration: batchSize=${batchSize}, maxCustomers=${maxCustomers}`);
+        console.log(`🎯 Expected: ~2000+ customers with CLIENT_TAG_ID=${CLIENT_TAG_ID}`);
 
         while (hasMore && totalFetched < maxCustomers) {
             try {
@@ -278,9 +298,9 @@ export default async function handler(req, res) {
 
                 console.log(`📊 Progress: ${totalFetched} customers fetched, ${syncLog.processed} processed`);
 
-                // Add delay between batches to respect rate limits
+                // Add shorter delay between batches to optimize for large datasets
                 if (hasMore) {
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    await new Promise(resolve => setTimeout(resolve, 300));
                 }
 
             } catch (error) {
@@ -311,12 +331,13 @@ export default async function handler(req, res) {
                 total_customers: allCustomers.length
             },
             metadata: {
-                filtered_by_client_tag: CLIENT_TAG_ID,
+                filtered_by_client_tag: BYPASS_TAG_FILTER ? 'DISABLED' : CLIENT_TAG_ID,
+                tag_filter_bypassed: BYPASS_TAG_FILTER,
                 api_url: PLOOMES_BASE_URL,
                 batch_size: batchSize,
                 max_customers_limit: maxCustomers,
-                source: 'ploome_api_real_data_sync',
-                note: 'Serverless sync - customers are fetched but not persisted to database',
+                source: 'ploome_api_real_data_sync_optimized',
+                note: 'Serverless sync optimized for large customer bases (2000+)',
                 timestamp: new Date().toISOString()
             },
             customers: allCustomers // Return all synced customers

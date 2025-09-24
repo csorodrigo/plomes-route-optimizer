@@ -77,8 +77,8 @@ const apiService = {
     }),
 
   // Geocoding
-  geocodeAddress: (cep) => api.post('/api/geocoding/cep', { cep }),
-  
+  geocodeAddress: (cep) => api.get(`/api/geocoding/cep/${cep.replace(/\D/g, '')}`),
+
   geocodeBatch: (addresses) => api.post('/api/geocoding/batch', { addresses }),
 
   // Route optimization
@@ -101,8 +101,8 @@ const apiService = {
 
   testPloomeConnection: () => api.get('/api/test-connection'),
 
-  // CEP services
-  getCepInfo: (cep) => api.get(`/api/geocoding/cep?cep=${cep}`),
+  // CEP services (deprecated - use geocodeAddress instead)
+  getCepInfo: (cep) => api.get(`/api/geocoding/cep/${cep.replace(/\D/g, '')}`),
 
   // Geocoding queue management
   startGeocoding: () => api.post('/api/geocode/start'),
