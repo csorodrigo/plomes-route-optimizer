@@ -107,10 +107,17 @@ const Statistics = ({ statistics: propStatistics }) => {
   const fetchStatistics = async () => {
     setLoading(true);
     try {
-      const stats = await api.getStatistics();
+      const response = await api.getStatistics();
+      console.log('Statistics API response:', response);
+
+      // Extract statistics from the response - handle both response formats
+      const stats = response.statistics || response;
+      console.log('Extracted statistics:', stats);
+
       setStatistics(stats);
       setLastUpdate(new Date());
     } catch (error) {
+      console.error('Error fetching statistics:', error);
       toast.error('Erro ao carregar estatísticas: ' + error.message);
     } finally {
       setLoading(false);

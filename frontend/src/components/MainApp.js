@@ -56,11 +56,15 @@ const MainApp = ({ initialView = 'dashboard' }) => {
   const fetchStatistics = async () => {
     try {
       const response = await api.getStatistics();
-      // O backend retorna {success: true, statistics: {...}}
+      console.log('MainApp - Statistics API response:', response);
+
+      // Extract statistics from the response - handle both response formats
       const stats = response.statistics || response;
+      console.log('MainApp - Extracted statistics:', stats);
+
       setStatistics(stats);
     } catch (error) {
-      console.error('Error fetching statistics:', error);
+      console.error('MainApp - Error fetching statistics:', error);
       toast.error('Failed to load statistics');
     }
   };
