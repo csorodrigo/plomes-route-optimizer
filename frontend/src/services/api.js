@@ -34,7 +34,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     console.log('API Response interceptor - data:', response.data);
-    return response.data;
+    return response;
   },
   (error) => {
     console.error('API Response Error:', error);

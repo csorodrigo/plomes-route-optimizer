@@ -161,7 +161,25 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
     setLoading(true);
     try {
       const response = await api.getCustomers();
-      const customerData = response.customers || response || [];
+      console.log('RouteOptimizer - API response:', response);
+
+      // CRITICAL FIX: Handle different response formats and ensure array
+      let customerData = [];
+      const data = response.data || response;
+
+      if (data && data.customers && Array.isArray(data.customers)) {
+        customerData = data.customers;
+      } else if (data && Array.isArray(data)) {
+        customerData = data;
+      } else if (response.customers && Array.isArray(response.customers)) {
+        customerData = response.customers;
+      } else {
+        console.warn('RouteOptimizer - Unexpected response format:', response);
+        customerData = [];
+      }
+
+      // Ensure we always have an array to prevent filter errors
+      customerData = Array.isArray(customerData) ? customerData : [];
 
       // Filter customers with valid coordinates
       const validCustomers = customerData.filter(customer =>

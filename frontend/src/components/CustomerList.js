@@ -103,15 +103,35 @@ const CustomerList = () => {
     setError(null);
     try {
       const response = await apiService.getCustomers();
-      const customersData = response.data || response || [];
-      setCustomers(customersData);
-      setFilteredCustomers(customersData);
+      console.log('CustomerList.js - API response:', response);
+
+      // CRITICAL FIX: Handle different response formats and ensure array
+      let customersData = [];
+      const data = response.data || response;
+
+      if (data && data.customers && Array.isArray(data.customers)) {
+        customersData = data.customers;
+      } else if (data && Array.isArray(data)) {
+        customersData = data;
+      } else if (data && data.data && Array.isArray(data.data)) {
+        customersData = data.data;
+      } else {
+        console.warn('CustomerList.js - Unexpected response format:', response);
+        customersData = [];
+      }
+
+      // Ensure we always have an array to prevent "t.filter is not a function" errors
+      setCustomers(Array.isArray(customersData) ? customersData : []);
+      setFilteredCustomers(Array.isArray(customersData) ? customersData : []);
 
       toast.success(`${customersData.length} ${t('customerList.customers')} ${t('messages.customersLoadedAll')}`);
     } catch (err) {
       const errorMessage = err.message || t('messages.errorLoadingCustomers');
       setError(errorMessage);
       toast.error(errorMessage);
+      // Ensure empty arrays on error
+      setCustomers([]);
+      setFilteredCustomers([]);
     } finally {
       setLoading(false);
     }

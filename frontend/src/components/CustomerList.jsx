@@ -46,13 +46,14 @@ const CustomerList = () => {
 
       // CRITICAL FIX: Handle different response formats and ensure array
       let customerList = [];
+      const data = response.data || response;
 
-      if (response && response.customers && Array.isArray(response.customers)) {
-        customerList = response.customers;
-      } else if (response && Array.isArray(response)) {
-        customerList = response;
-      } else if (response && response.data && Array.isArray(response.data)) {
-        customerList = response.data;
+      if (data && data.customers && Array.isArray(data.customers)) {
+        customerList = data.customers;
+      } else if (data && Array.isArray(data)) {
+        customerList = data;
+      } else if (data && data.data && Array.isArray(data.data)) {
+        customerList = data.data;
       } else {
         console.warn('CustomerList - Unexpected response format:', response);
         customerList = [];
@@ -74,7 +75,8 @@ const CustomerList = () => {
   const loadStats = useCallback(async () => {
     try {
       const response = await api.getStatistics();
-      const stats = response.statistics || response;
+      const data = response.data || response;
+      const stats = data.statistics || data;
       setStats(stats);
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);

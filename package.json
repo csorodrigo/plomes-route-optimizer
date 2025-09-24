@@ -23,10 +23,17 @@
     "test:integration": "jest frontend/src/components/__tests__/RouteOptimizer.integration.test.js",
     "test:e2e": "jest frontend/src/__tests__/e2e/polyline.e2e.test.js",
     "test:ci": "jest --ci --coverage --watchAll=false",
-    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand"
+    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand",
+    "supabase:config": "node backend/setup-supabase-config.js",
+    "supabase:test": "node backend/test-supabase.js",
+    "supabase:migrate": "node backend/migrate-to-supabase.js",
+    "supabase:deploy": "node backend/deploy-vercel-env.js",
+    "supabase:setup": "node scripts/setup-supabase.js",
+    "supabase:migrate-kv": "node scripts/migrate-kv-to-supabase.js"
   },
   "dependencies": {
     "@mapbox/polyline": "^1.2.1",
+    "@supabase/supabase-js": "^2.57.4",
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

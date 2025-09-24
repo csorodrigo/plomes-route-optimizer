@@ -1,8 +1,8 @@
-// Vercel Serverless Function for Batch Geocoding with Persistence - CRITICAL FIX
-// This API will geocode customers who don't have coordinates yet AND SAVE THEM
+// Vercel Serverless Function for Batch Geocoding with Supabase Persistence - CRITICAL FIX
+// This API will geocode customers who don't have coordinates yet AND SAVE THEM to PostgreSQL
 import https from 'https';
 import http from 'http';
-import kv from '../../lib/kv.js';
+import supabaseKV from '../../lib/supabase.js';
 
 // Node.js HTTP request utility for Vercel serverless compatibility
 function makeHttpRequest(url, options = {}) {
@@ -146,14 +146,9 @@ export default async function handler(req, res) {
                 totalCustomers = data['@odata.count'] || 0;
             }
 
-            // Check how many customers are already geocoded (from storage)
-            const savedStats = await kv.get('geocoding_stats');
-            let alreadyGeocoded = 0;
-
-            if (savedStats) {
-                const stats = JSON.parse(savedStats);
-                alreadyGeocoded = stats.total_geocoded || 0;
-            }
+            // Check how many customers are already geocoded (from Supabase)
+            const customerStats = await supabaseKV.getCustomerStats();
+            const alreadyGeocoded = customerStats.geocoded || 0;
 
             // Get sample of customers to check geocoding status
             const sampleUrl = `${PLOOMES_BASE_URL}/Contacts?$top=100&$expand=Tags&$filter=Tags/any(t: t/TagId eq ${CLIENT_TAG_ID})`;
@@ -380,16 +375,18 @@ export default async function handler(req, res) {
             try {
                 console.log('[BATCH GEOCODING] Saving geocoded customers to storage...');
 
-                // Save individual customers
-                for (const customer of results.customers) {
-                    if (customer.latitude && customer.longitude) {
-                        const customerKey = `customer:${customer.id}`;
-                        await kv.set(customerKey, JSON.stringify(customer));
-                    }
-                }
+                // Save all customers to Supabase (including non-geocoded ones for completeness)
+                const savePromises = results.customers.map(async (customer) => {
+                    const customerKey = `customer:${customer.id}`;
+                    return await supabaseKV.set(customerKey, JSON.stringify(customer));
+                });
 
-                // Update global statistics
-                const stats = await kv.get('geocoding_stats') || {
+                await Promise.all(savePromises);
+                console.log(`[BATCH GEOCODING] ✅ Saved ${results.customers.length} customers to Supabase`);
+
+                // Update global statistics in Supabase
+                const currentStats = await supabaseKV.getGeocodingStats();
+                let stats = {
                     total_processed: 0,
                     total_geocoded: 0,
                     total_failed: 0,
@@ -397,16 +394,24 @@ export default async function handler(req, res) {
                     last_updated: null
                 };
 
+                if (currentStats) {
+                    try {
+                        stats = JSON.parse(currentStats);
+                    } catch (e) {
+                        console.warn('[BATCH GEOCODING] Failed to parse existing stats, using defaults');
+                    }
+                }
+
                 stats.total_processed += results.processed;
                 stats.total_geocoded += results.geocoded;
                 stats.total_failed += results.failed;
                 stats.total_skipped += results.skipped;
                 stats.last_updated = new Date().toISOString();
 
-                await kv.set('geocoding_stats', JSON.stringify(stats));
+                await supabaseKV.setGeocodingStats(stats);
 
-                // Save batch completion info
-                await kv.set(`batch:${skipCount}`, JSON.stringify({
+                // Save batch completion info to Supabase
+                await supabaseKV.set(`batch:${skipCount}`, JSON.stringify({
                     completed_at: new Date().toISOString(),
                     batch_size: batchSize,
                     skip_count: skipCount,
@@ -418,7 +423,7 @@ export default async function handler(req, res) {
                     }
                 }));
 
-                console.log(`[BATCH GEOCODING] ✅ Saved ${results.geocoded} geocoded customers to persistent storage`);
+                console.log(`[BATCH GEOCODING] ✅ Saved ${results.customers.length} customers to Supabase PostgreSQL`);
             } catch (saveError) {
                 console.error('[BATCH GEOCODING] ❌ Failed to save to storage:', saveError);
                 // Don't fail the request, just log the error
@@ -436,7 +441,8 @@ export default async function handler(req, res) {
                 has_more: contacts.length === batchSize,
                 geocoding_rate: results.processed > 0 ? (results.geocoded / results.processed * 100).toFixed(1) + '%' : '0%',
                 timestamp: new Date().toISOString(),
-                saved_to_storage: results.geocoded
+                saved_to_supabase: results.customers.length,
+                geocoded_count: results.geocoded
             }
         });
 

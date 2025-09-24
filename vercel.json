@@ -27,6 +27,11 @@
     "PLOOMES_BASE_URL": "https://public-api2.ploomes.com",
     "CLIENT_TAG_ID": "40006184",
     "JWT_SECRET": "super-secret-jwt-key-for-production-please-change-this-in-real-deployment-123456789",
-    "DATABASE_URL": "sqlite:./tmp/app.db"
+    "SUPABASE_URL": "https://ywftruasqhjqayazukmz.supabase.co",
+    "SUPABASE_ANON_KEY": "sbp_581c923a5cf097d4652d24e27cfd57aa86449869",
+    "SUPABASE_SERVICE_ROLE_KEY": "sbp_581c923a5cf097d4652d24e27cfd57aa86449869",
+    "GOOGLE_MAPS_API_KEY": "AIzaSyBKyuYzhwmPsk0tEk2N4qnELPFV-7nuvHk",
+    "POSITIONSTACK_API_KEY": "af855cf79ef4194561e7ee8faf3f9dc4O",
+    "OPENROUTE_API_KEY": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjkwNGUyY2U5NmY3MDRkYzA4OTZlODliYzRlNDgzMTRhIiwiaCI6Im11cm11cjY0In0="
   }
 }

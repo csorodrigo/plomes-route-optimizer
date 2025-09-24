@@ -1,8 +1,8 @@
-// Vercel Serverless Function for Customers API - REAL PLOOME + PERSISTENT STORAGE
-// Serves geocoded customers from KV storage with Ploome fallback
+// Vercel Serverless Function for Customers API - REAL PLOOME + SUPABASE STORAGE
+// Serves geocoded customers from Supabase PostgreSQL with Ploome fallback
 import https from 'https';
 import http from 'http';
-import kv from '../lib/kv.js';
+import supabaseKV from '../lib/supabase.js';
 
 // Node.js HTTP request utility for Vercel serverless compatibility
 function makeHttpRequest(url, options = {}) {
@@ -110,11 +110,11 @@ export default async function handler(req, res) {
     }
 
     try {
-        console.log('🚨 Vercel Serverless Customers API called - PERSISTENT STORAGE + PLOOME');
+        console.log('🚨 Vercel Serverless Customers API called - SUPABASE POSTGRESQL + PLOOME');
 
-        // Try to serve from persistent storage first (faster)
+        // Try to serve from Supabase PostgreSQL first (faster and persistent)
         try {
-            console.log('[CUSTOMERS API] Checking persistent storage for geocoded customers...');
+            console.log('[CUSTOMERS API] Checking Supabase PostgreSQL for geocoded customers...');
 
             // Get search parameters
             const { search = '', page = 0, limit = 25, geocoded_only = 'false' } = req.query;
@@ -122,69 +122,37 @@ export default async function handler(req, res) {
             const limitNum = parseInt(limit);
             const geoOnly = geocoded_only === 'true';
 
-            // Get all customer keys from storage
-            const customerKeys = await kv.keys('customer:*');
-            console.log(`[CUSTOMERS API] Found ${customerKeys.length} customers in storage`);
+            // Use the advanced Supabase query method for better performance
+            const filters = {
+                search: search || null,
+                geocoded_only: geoOnly,
+                limit: limitNum,
+                offset: pageNum * limitNum
+            };
 
-            if (customerKeys.length > 0) {
-                // Retrieve all customers from storage
-                let customers = [];
+            const customers = await supabaseKV.getAllCustomers(filters);
+            console.log(`[CUSTOMERS API] Found ${customers.length} customers in Supabase`);
 
-                // Use batch get for efficiency
-                const customerData = await kv.mget(customerKeys);
+            if (customers.length > 0) {
+                console.log(`[CUSTOMERS API] ✅ Retrieved ${customers.length} customers from Supabase PostgreSQL`);
 
-                for (let i = 0; i < customerData.length; i++) {
-                    if (customerData[i]) {
-                        try {
-                            const customer = JSON.parse(customerData[i]);
-                            customers.push(customer);
-                        } catch (parseError) {
-                            console.warn(`[CUSTOMERS API] Failed to parse customer data for ${customerKeys[i]}:`, parseError);
-                        }
-                    }
-                }
+                // Get total count without pagination for proper pagination metadata
+                const allCustomersForCount = await supabaseKV.getAllCustomers({
+                    search: search || null,
+                    geocoded_only: geoOnly
+                });
+                const total = allCustomersForCount.length;
 
-                console.log(`[CUSTOMERS API] ✅ Retrieved ${customers.length} customers from storage`);
+                // Get statistics from Supabase
+                const customerStats = await supabaseKV.getCustomerStats();
+                const geocodedCount = customerStats.geocoded || 0;
+                const totalCustomers = customerStats.total || 0;
+                const pendingCount = customerStats.pending || 0;
 
-                // Filter customers based on criteria
-                let filteredCustomers = customers;
-
-                // Filter by geocoded status
-                if (geoOnly) {
-                    filteredCustomers = filteredCustomers.filter(c => c.latitude && c.longitude);
-                }
-
-                // Filter by search term
-                if (search) {
-                    const searchLower = search.toLowerCase();
-                    filteredCustomers = filteredCustomers.filter(customer => {
-                        return (
-                            (customer.name && customer.name.toLowerCase().includes(searchLower)) ||
-                            (customer.email && customer.email.toLowerCase().includes(searchLower)) ||
-                            (customer.cep && customer.cep.includes(searchLower)) ||
-                            (customer.city && customer.city.toLowerCase().includes(searchLower)) ||
-                            (customer.address && customer.address.toLowerCase().includes(searchLower))
-                        );
-                    });
-                }
-
-                // Sort by name for consistent ordering
-                filteredCustomers.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-                // Apply pagination
-                const total = filteredCustomers.length;
-                const startIndex = pageNum * limitNum;
-                const endIndex = startIndex + limitNum;
-                const paginatedCustomers = filteredCustomers.slice(startIndex, endIndex);
-
-                // Get statistics
-                const geocodedCount = customers.filter(c => c.latitude && c.longitude).length;
-                const pendingCount = customers.length - geocodedCount;
-
-                // Get global stats from storage
-                const savedStats = await kv.get('geocoding_stats');
+                // Get global stats from Supabase
+                const savedStats = await supabaseKV.getGeocodingStats();
                 let globalStats = {
-                    total_processed: customers.length,
+                    total_processed: totalCustomers,
                     total_geocoded: geocodedCount,
                     total_failed: 0,
                     total_skipped: pendingCount,
@@ -195,35 +163,35 @@ export default async function handler(req, res) {
                     try {
                         globalStats = JSON.parse(savedStats);
                     } catch (e) {
-                        console.warn('[CUSTOMERS API] Failed to parse global stats');
+                        console.warn('[CUSTOMERS API] Failed to parse global stats from Supabase');
                     }
                 }
 
-                console.log(`[CUSTOMERS API] ✅ Returning ${paginatedCustomers.length} customers from storage (page ${pageNum + 1})`);
+                console.log(`[CUSTOMERS API] ✅ Returning ${customers.length} customers from Supabase (page ${pageNum + 1})`);
 
                 return res.status(200).json({
                     success: true,
-                    data: paginatedCustomers,
-                    customers: paginatedCustomers, // Backward compatibility
+                    data: customers,
+                    customers: customers, // Backward compatibility
                     pagination: {
                         page: pageNum,
                         limit: limitNum,
                         total: total,
                         totalPages: Math.ceil(total / limitNum),
-                        hasNext: endIndex < total,
+                        hasNext: (pageNum + 1) * limitNum < total,
                         hasPrev: pageNum > 0
                     },
-                    total: paginatedCustomers.length,
+                    total: customers.length,
                     statistics: {
-                        totalCustomers: customers.length,
+                        totalCustomers: totalCustomers,
                         geocodedCustomers: geocodedCount,
                         pendingGeocoding: pendingCount,
                         searchResults: total,
-                        geocodingRate: customers.length > 0 ? Math.round((geocodedCount / customers.length) * 100) : 0
+                        geocodingRate: customerStats.geocodingRate || 0
                     },
                     globalStats: globalStats,
                     metadata: {
-                        source: 'vercel_persistent_storage',
+                        source: 'supabase_postgresql',
                         timestamp: new Date().toISOString(),
                         filters: {
                             search: search || null,
@@ -233,9 +201,9 @@ export default async function handler(req, res) {
                 });
             }
 
-            console.log('[CUSTOMERS API] No data in storage, falling back to Ploome...');
+            console.log('[CUSTOMERS API] No data in Supabase, falling back to Ploome...');
         } catch (storageError) {
-            console.error('[CUSTOMERS API] Storage error, falling back to Ploome:', storageError);
+            console.error('[CUSTOMERS API] Supabase error, falling back to Ploome:', storageError);
         }
 
         // Get Ploome credentials from environment
