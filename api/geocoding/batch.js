@@ -146,10 +146,16 @@ export default async function handler(req, res) {
                 totalCustomers = data['@odata.count'] || 0;
             }
 
-            // Check how many customers are already geocoded (temporarily using 0 while we fix Supabase)
-            // const customerStats = await supabaseKV.getCustomerStats();
-            // const alreadyGeocoded = customerStats.geocoded || 0;
-            const alreadyGeocoded = 0; // Temporary fallback
+            // Check how many customers are already geocoded
+            let alreadyGeocoded = 0;
+            try {
+                const customerStats = await supabaseKV.getCustomerStats();
+                alreadyGeocoded = customerStats.geocoded || 0;
+                console.log(`[GEOCODING PROGRESS] Found ${alreadyGeocoded} already geocoded customers in Supabase`);
+            } catch (statsError) {
+                console.warn(`[GEOCODING PROGRESS] Failed to get customer stats: ${statsError.message}`);
+                alreadyGeocoded = 0; // Fallback only on error
+            }
 
             // Get sample of customers to check geocoding status
             const sampleUrl = `${PLOOMES_BASE_URL}/Contacts?$top=100&$expand=Tags&$filter=Tags/any(t: t/TagId eq ${CLIENT_TAG_ID})`;
