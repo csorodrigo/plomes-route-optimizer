@@ -113,7 +113,7 @@ const apiService = {
   startBatchGeocoding: (batchSize = 50, skip = 0) =>
     api.post(`/api/geocoding/batch?batch_size=${batchSize}&skip=${skip}`),
 
-  getGeocodingStatus: () => api.get('/api/geocoding/progress'),
+  getGeocodingStatus: () => api.get('/api/geocoding/batch'), // Uses same endpoint with GET method
 
   // Utility functions for data formatting
   formatCustomerForMap: (customer) => ({
