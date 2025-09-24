@@ -5,6 +5,11 @@
   "outputDirectory": "frontend/build",
   "installCommand": "npm install",
   "framework": null,
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
   "rewrites": [
     {
       "source": "/((?!api).*)",
