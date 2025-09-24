@@ -171,7 +171,15 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
       );
 
       setCustomers(validCustomers);
-      toast.success(t('messages.customersLoaded', { count: validCustomers.length }));
+
+      // CRITICAL FIX: Alert user if no customers have coordinates
+      if (validCustomers.length === 0 && customerData.length > 0) {
+        toast.warning(`${customerData.length} clientes carregados mas nenhum tem coordenadas. Execute a geocodificação primeiro.`);
+      } else if (validCustomers.length > 0) {
+        toast.success(t('messages.customersLoaded', { count: validCustomers.length }));
+      } else {
+        toast.error('Nenhum cliente encontrado. Execute a sincronização primeiro.');
+      }
     } catch (error) {
       console.error('Error loading customers:', error);
       toast.error(t('messages.errorLoadingCustomers'));

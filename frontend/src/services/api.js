@@ -106,8 +106,14 @@ const apiService = {
 
   // Geocoding queue management
   startGeocoding: () => api.post('/api/geocode/start'),
-  
+
   getGeocodingProgress: () => api.get('/api/geocode/progress'),
+
+  // Batch geocoding - NEW ENDPOINTS FOR GEOCODING FIX
+  startBatchGeocoding: (batchSize = 50, skip = 0) =>
+    api.post(`/api/geocoding/batch?batch_size=${batchSize}&skip=${skip}`),
+
+  getGeocodingStatus: () => api.get('/api/geocoding/progress'),
 
   // Utility functions for data formatting
   formatCustomerForMap: (customer) => ({

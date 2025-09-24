@@ -33,6 +33,7 @@ import RouteOptimizer from './RouteOptimizer';
 import Statistics from './Statistics';
 import CustomerSync from './CustomerSync';
 import CustomerList from './CustomerList';
+import GeocodingManager from './GeocodingManager';
 import ErrorBoundary from './ErrorBoundary';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -79,6 +80,7 @@ const MainApp = ({ initialView = 'dashboard' }) => {
     { text: 'Lista de Clientes', icon: <PersonIcon />, view: 'customers', path: '/customers' },
     { text: 'Mapa e Rotas', icon: <MapIcon />, view: 'map', path: '/map' },
     { text: 'Sincronizar', icon: <SyncIcon />, view: 'sync', path: '/sync' },
+    { text: 'Geocodificação', icon: <MapIcon />, view: 'geocoding', path: '/geocoding' },
     { text: 'Configurações', icon: <SettingsIcon />, view: 'settings', path: '/settings' }
   ];
 
@@ -100,6 +102,8 @@ const MainApp = ({ initialView = 'dashboard' }) => {
         );
       case 'sync':
         return <CustomerSync onSyncComplete={handleSyncComplete} />;
+      case 'geocoding':
+        return <GeocodingManager onGeocodingComplete={fetchStatistics} />;
       case 'dashboard':
         return <Statistics statistics={statistics} />;
       case 'settings':
