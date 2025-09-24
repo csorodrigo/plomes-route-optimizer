@@ -141,11 +141,15 @@ export default async function handler(req, res) {
             });
         }
 
-        // Fetch statistics from real Ploome API
+        // Fetch statistics from real Ploome API using data endpoints (count endpoints don't support OData filters)
         try {
-            // Get total contacts count
-            const contactsCountUrl = `${PLOOMES_BASE_URL}/Contacts/$count`;
-            console.log('🔄 Fetching total contacts count:', contactsCountUrl);
+            // CRITICAL FIX: Use regular endpoints to count data instead of /$count endpoints
+            // The /$count endpoints don't support complex OData filters like Tags/any(t: t/TagId eq X)
+            // This matches the working sync API approach
+
+            // Get total contacts count using regular endpoint with $top=1 to minimize data transfer
+            const contactsCountUrl = `${PLOOMES_BASE_URL}/Contacts?$top=1&$count=true`;
+            console.log('🔄 Fetching total contacts count (using data endpoint):', contactsCountUrl);
 
             const contactsCountResponse = await fetchWithRetry(contactsCountUrl, {
                 method: 'GET',
@@ -154,19 +158,19 @@ export default async function handler(req, res) {
                     'Accept': 'application/json',
                     'User-Key': PLOOMES_API_KEY
                 },
-                timeout: 8000
+                timeout: 10000
             }, 2);
 
             let totalContacts = 0;
             if (contactsCountResponse.ok) {
-                const totalText = await contactsCountResponse.text();
-                totalContacts = parseInt(totalText) || 0;
+                const contactsData = await contactsCountResponse.json();
+                totalContacts = contactsData['@odata.count'] || 0;
                 console.log('✅ Total contacts in Ploome:', totalContacts);
             }
 
-            // Get clients count (with CLIENT_TAG_ID filter)
-            const clientsCountUrl = `${PLOOMES_BASE_URL}/Contacts/$count?$filter=Tags/any(t: t/TagId eq ${CLIENT_TAG_ID})`;
-            console.log('🔄 Fetching clients count (with CLIENT_TAG_ID filter):', clientsCountUrl);
+            // Get clients count (with CLIENT_TAG_ID filter) - FIXED: Use data endpoint not count endpoint
+            const clientsCountUrl = `${PLOOMES_BASE_URL}/Contacts?$top=1&$count=true&$expand=Tags&$filter=Tags/any(t: t/TagId eq ${CLIENT_TAG_ID})`;
+            console.log('🔄 Fetching clients count (with CLIENT_TAG_ID filter using data endpoint):', clientsCountUrl);
 
             const clientsCountResponse = await fetchWithRetry(clientsCountUrl, {
                 method: 'GET',
@@ -175,19 +179,22 @@ export default async function handler(req, res) {
                     'Accept': 'application/json',
                     'User-Key': PLOOMES_API_KEY
                 },
-                timeout: 8000
+                timeout: 10000
             }, 2);
 
             let totalClients = 0;
             if (clientsCountResponse.ok) {
-                const clientsText = await clientsCountResponse.text();
-                totalClients = parseInt(clientsText) || 0;
+                const clientsData = await clientsCountResponse.json();
+                totalClients = clientsData['@odata.count'] || 0;
                 console.log('✅ Total clients (with CLIENT_TAG_ID):', totalClients);
+                console.log('🎯 This should match sync results (~2252 customers)');
+            } else {
+                console.error('❌ Failed to fetch clients count:', clientsCountResponse.status);
             }
 
-            // Get deals/opportunities count
-            const dealsCountUrl = `${PLOOMES_BASE_URL}/Deals/$count`;
-            console.log('🔄 Fetching deals count:', dealsCountUrl);
+            // Get deals/opportunities count using data endpoint
+            const dealsCountUrl = `${PLOOMES_BASE_URL}/Deals?$top=1&$count=true`;
+            console.log('🔄 Fetching deals count (using data endpoint):', dealsCountUrl);
 
             const dealsCountResponse = await fetchWithRetry(dealsCountUrl, {
                 method: 'GET',
@@ -196,13 +203,13 @@ export default async function handler(req, res) {
                     'Accept': 'application/json',
                     'User-Key': PLOOMES_API_KEY
                 },
-                timeout: 8000
+                timeout: 10000
             }, 2);
 
             let totalDeals = 0;
             if (dealsCountResponse.ok) {
-                const dealsText = await dealsCountResponse.text();
-                totalDeals = parseInt(dealsText) || 0;
+                const dealsData = await dealsCountResponse.json();
+                totalDeals = dealsData['@odata.count'] || 0;
                 console.log('✅ Total deals:', totalDeals);
             }
 
@@ -212,7 +219,7 @@ export default async function handler(req, res) {
 
             // Prepare statistics response
             const statistics = {
-                totalCustomers: totalClients, // Only count actual clients, not all contacts
+                totalCustomers: totalClients, // Only count actual clients (with CLIENT_TAG_ID), not all contacts
                 totalContacts: totalContacts, // All contacts in Ploome
                 totalDeals: totalDeals,
                 totalRoutes: Math.round(totalClients / 10), // Estimate: 1 route per 10 clients
@@ -221,7 +228,15 @@ export default async function handler(req, res) {
                 performanceMetrics: {
                     avgCustomersPerRoute: totalClients > 0 ? Math.round(totalClients / Math.max(Math.round(totalClients / 10), 1)) : 0,
                     geocodingSuccessRate: '80%', // Estimated
-                    apiResponseTime: '< 2s'
+                    apiResponseTime: '< 3s'
+                },
+                // Add debugging info to verify fix
+                debugInfo: {
+                    clientTagIdUsed: CLIENT_TAG_ID,
+                    expectedCustomersFromSync: '~2252',
+                    actualCustomersFromStats: totalClients,
+                    matchesSync: totalClients > 2200 && totalClients < 2300,
+                    fixApplied: 'Using data endpoints instead of count endpoints for OData filter support'
                 }
             };
 
