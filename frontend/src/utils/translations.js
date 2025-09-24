@@ -63,7 +63,8 @@ export const translations = {
     selectedCustomers: 'Clientes Selecionados',
     removeFromSelection: 'Remover da seleção',
     map: 'Mapa',
-    customerListTab: 'Lista de Clientes'
+    customerListTab: 'Lista de Clientes',
+    selectCustomersHint: 'Selecione clientes no mapa ou na lista'
   },
 
   // Route Information
