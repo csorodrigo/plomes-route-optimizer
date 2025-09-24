@@ -1,4 +1,80 @@
 // Vercel Serverless Function for CEP Geocoding
+import https from 'https';
+import http from 'http';
+
+// Node.js HTTP request utility for Vercel serverless compatibility
+function makeHttpRequest(url, options = {}) {
+    return new Promise((resolve, reject) => {
+        const urlObj = new URL(url);
+        const isHttps = urlObj.protocol === 'https:';
+        const client = isHttps ? https : http;
+
+        const reqOptions = {
+            hostname: urlObj.hostname,
+            port: urlObj.port || (isHttps ? 443 : 80),
+            path: urlObj.pathname + urlObj.search,
+            method: options.method || 'GET',
+            headers: {
+                'User-Agent': 'PlomesRotaCEP/1.0',
+                ...options.headers
+            },
+            timeout: options.timeout || 6000
+        };
+
+        const req = client.request(reqOptions, (res) => {
+            let data = '';
+
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+
+            res.on('end', () => {
+                resolve({
+                    ok: res.statusCode >= 200 && res.statusCode < 300,
+                    status: res.statusCode,
+                    statusText: res.statusMessage,
+                    json: async () => JSON.parse(data),
+                    text: async () => data
+                });
+            });
+        });
+
+        req.on('error', (error) => {
+            reject(error);
+        });
+
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Request timeout'));
+        });
+
+        if (options.body) {
+            req.write(options.body);
+        }
+
+        req.end();
+    });
+}
+
+// Retry utility for external API calls
+async function fetchWithRetry(url, options, maxRetries = 2) {
+    let lastError;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await makeHttpRequest(url, options);
+            return response;
+        } catch (error) {
+            lastError = error;
+            if (attempt < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+            }
+        }
+    }
+
+    throw lastError;
+}
+
 export default async function handler(req, res) {
     // Configure CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -56,10 +132,27 @@ export default async function handler(req, res) {
             });
         }
 
-        // Call ViaCEP API for address details
+        // Call ViaCEP API for address details with retry logic
         try {
-            const viaCepResponse = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
+            console.log('🔄 Calling ViaCEP API for CEP:', cleanCEP);
+            const viaCepResponse = await fetchWithRetry(`https://viacep.com.br/ws/${cleanCEP}/json/`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'User-Agent': 'PlomesRotaCEP/1.0'
+                }
+            }, 3);
+
+            if (!viaCepResponse.ok) {
+                console.error('❌ ViaCEP API error:', viaCepResponse.status, viaCepResponse.statusText);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Erro ao consultar ViaCEP API'
+                });
+            }
+
             const addressData = await viaCepResponse.json();
+            console.log('✅ ViaCEP response received for:', cleanCEP);
 
             if (addressData.erro) {
                 return res.status(404).json({
@@ -73,42 +166,58 @@ export default async function handler(req, res) {
             let coords = null;
 
             try {
-                // Try OpenStreetMap Nominatim first (free)
+                // Try OpenStreetMap Nominatim first (free) with retry logic
                 const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}&limit=1&addressdetails=1`;
-                const nominatimResponse = await fetch(nominatimUrl, {
+                console.log('🔄 Trying Nominatim geocoding for:', fullAddress);
+
+                const nominatimResponse = await fetchWithRetry(nominatimUrl, {
+                    method: 'GET',
                     headers: {
-                        'User-Agent': 'PlomesRotaCEP/1.0 (geocoding service)'
+                        'User-Agent': 'PlomesRotaCEP/1.0 (geocoding service)',
+                        'Accept': 'application/json'
                     }
-                });
-                const nominatimData = await nominatimResponse.json();
+                }, 2);
 
-                if (nominatimData && nominatimData.length > 0) {
-                    coords = {
-                        lat: parseFloat(nominatimData[0].lat),
-                        lng: parseFloat(nominatimData[0].lon)
-                    };
-                    console.log('✅ Geocoding successful via Nominatim');
-                } else {
-                    // Fallback: try simpler address without street number
-                    const simpleAddress = `${addressData.bairro}, ${addressData.localidade}, ${addressData.uf}, Brazil`;
-                    const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(simpleAddress)}&limit=1`;
-                    const fallbackResponse = await fetch(fallbackUrl, {
-                        headers: {
-                            'User-Agent': 'PlomesRotaCEP/1.0 (geocoding service)'
-                        }
-                    });
-                    const fallbackData = await fallbackResponse.json();
+                if (nominatimResponse.ok) {
+                    const nominatimData = await nominatimResponse.json();
 
-                    if (fallbackData && fallbackData.length > 0) {
+                    if (nominatimData && nominatimData.length > 0) {
                         coords = {
-                            lat: parseFloat(fallbackData[0].lat),
-                            lng: parseFloat(fallbackData[0].lon)
+                            lat: parseFloat(nominatimData[0].lat),
+                            lng: parseFloat(nominatimData[0].lon)
                         };
-                        console.log('✅ Geocoding successful via Nominatim fallback');
+                        console.log('✅ Geocoding successful via Nominatim');
+                    } else {
+                        console.log('⚠️ No results from full address, trying simpler address...');
+                        // Fallback: try simpler address without street details
+                        const simpleAddress = `${addressData.bairro}, ${addressData.localidade}, ${addressData.uf}, Brazil`;
+                        const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(simpleAddress)}&limit=1`;
+
+                        const fallbackResponse = await fetchWithRetry(fallbackUrl, {
+                            method: 'GET',
+                            headers: {
+                                'User-Agent': 'PlomesRotaCEP/1.0 (geocoding service)',
+                                'Accept': 'application/json'
+                            }
+                        }, 2);
+
+                        if (fallbackResponse.ok) {
+                            const fallbackData = await fallbackResponse.json();
+
+                            if (fallbackData && fallbackData.length > 0) {
+                                coords = {
+                                    lat: parseFloat(fallbackData[0].lat),
+                                    lng: parseFloat(fallbackData[0].lon)
+                                };
+                                console.log('✅ Geocoding successful via Nominatim fallback');
+                            }
+                        }
                     }
+                } else {
+                    console.error('❌ Nominatim API error:', nominatimResponse.status, nominatimResponse.statusText);
                 }
             } catch (geocodingError) {
-                console.error('⚠️ Geocoding error:', geocodingError);
+                console.error('❌ Geocoding error:', geocodingError.message);
             }
 
             // Final fallback: If geocoding failed, use approximate coordinates based on city
@@ -149,10 +258,29 @@ export default async function handler(req, res) {
             return res.status(200).json(result);
 
         } catch (error) {
-            console.error('Error calling ViaCEP:', error);
+            console.error('💥 Error calling ViaCEP:', error);
+
+            // Provide more detailed error information
+            let errorMessage = 'Erro ao consultar CEP';
+            let errorDetails = error.message;
+
+            if (error.name === 'AbortError') {
+                errorMessage = 'Consulta de CEP expirou (timeout)';
+                errorDetails = 'Request exceeded timeout limit';
+            } else if (error.code === 'ENOTFOUND' || error.cause?.code === 'ENOTFOUND') {
+                errorMessage = 'Erro de conectividade com ViaCEP';
+                errorDetails = 'DNS resolution failed';
+            } else if (error.code === 'ECONNREFUSED' || error.cause?.code === 'ECONNREFUSED') {
+                errorMessage = 'ViaCEP indisponível no momento';
+                errorDetails = 'Connection refused by ViaCEP API';
+            }
+
             return res.status(500).json({
                 success: false,
-                message: 'Erro ao consultar CEP'
+                message: errorMessage,
+                error: errorDetails,
+                errorType: error.name || 'NetworkError',
+                timestamp: new Date().toISOString()
             });
         }
 
