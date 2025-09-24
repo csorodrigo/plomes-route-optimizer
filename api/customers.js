@@ -1,7 +1,8 @@
-// Vercel Serverless Function for Customers API - REAL PLOOME INTEGRATION ONLY
-// NO MOCK DATA FALLBACKS PER USER REQUIREMENTS
+// Vercel Serverless Function for Customers API - REAL PLOOME + PERSISTENT STORAGE
+// Serves geocoded customers from KV storage with Ploome fallback
 import https from 'https';
 import http from 'http';
+import kv from '../lib/kv.js';
 
 // Node.js HTTP request utility for Vercel serverless compatibility
 function makeHttpRequest(url, options = {}) {
@@ -109,7 +110,133 @@ export default async function handler(req, res) {
     }
 
     try {
-        console.log('🚨 Vercel Serverless Customers API called - REAL PLOOME INTEGRATION ONLY');
+        console.log('🚨 Vercel Serverless Customers API called - PERSISTENT STORAGE + PLOOME');
+
+        // Try to serve from persistent storage first (faster)
+        try {
+            console.log('[CUSTOMERS API] Checking persistent storage for geocoded customers...');
+
+            // Get search parameters
+            const { search = '', page = 0, limit = 25, geocoded_only = 'false' } = req.query;
+            const pageNum = parseInt(page);
+            const limitNum = parseInt(limit);
+            const geoOnly = geocoded_only === 'true';
+
+            // Get all customer keys from storage
+            const customerKeys = await kv.keys('customer:*');
+            console.log(`[CUSTOMERS API] Found ${customerKeys.length} customers in storage`);
+
+            if (customerKeys.length > 0) {
+                // Retrieve all customers from storage
+                let customers = [];
+
+                // Use batch get for efficiency
+                const customerData = await kv.mget(customerKeys);
+
+                for (let i = 0; i < customerData.length; i++) {
+                    if (customerData[i]) {
+                        try {
+                            const customer = JSON.parse(customerData[i]);
+                            customers.push(customer);
+                        } catch (parseError) {
+                            console.warn(`[CUSTOMERS API] Failed to parse customer data for ${customerKeys[i]}:`, parseError);
+                        }
+                    }
+                }
+
+                console.log(`[CUSTOMERS API] ✅ Retrieved ${customers.length} customers from storage`);
+
+                // Filter customers based on criteria
+                let filteredCustomers = customers;
+
+                // Filter by geocoded status
+                if (geoOnly) {
+                    filteredCustomers = filteredCustomers.filter(c => c.latitude && c.longitude);
+                }
+
+                // Filter by search term
+                if (search) {
+                    const searchLower = search.toLowerCase();
+                    filteredCustomers = filteredCustomers.filter(customer => {
+                        return (
+                            (customer.name && customer.name.toLowerCase().includes(searchLower)) ||
+                            (customer.email && customer.email.toLowerCase().includes(searchLower)) ||
+                            (customer.cep && customer.cep.includes(searchLower)) ||
+                            (customer.city && customer.city.toLowerCase().includes(searchLower)) ||
+                            (customer.address && customer.address.toLowerCase().includes(searchLower))
+                        );
+                    });
+                }
+
+                // Sort by name for consistent ordering
+                filteredCustomers.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                // Apply pagination
+                const total = filteredCustomers.length;
+                const startIndex = pageNum * limitNum;
+                const endIndex = startIndex + limitNum;
+                const paginatedCustomers = filteredCustomers.slice(startIndex, endIndex);
+
+                // Get statistics
+                const geocodedCount = customers.filter(c => c.latitude && c.longitude).length;
+                const pendingCount = customers.length - geocodedCount;
+
+                // Get global stats from storage
+                const savedStats = await kv.get('geocoding_stats');
+                let globalStats = {
+                    total_processed: customers.length,
+                    total_geocoded: geocodedCount,
+                    total_failed: 0,
+                    total_skipped: pendingCount,
+                    last_updated: new Date().toISOString()
+                };
+
+                if (savedStats) {
+                    try {
+                        globalStats = JSON.parse(savedStats);
+                    } catch (e) {
+                        console.warn('[CUSTOMERS API] Failed to parse global stats');
+                    }
+                }
+
+                console.log(`[CUSTOMERS API] ✅ Returning ${paginatedCustomers.length} customers from storage (page ${pageNum + 1})`);
+
+                return res.status(200).json({
+                    success: true,
+                    data: paginatedCustomers,
+                    customers: paginatedCustomers, // Backward compatibility
+                    pagination: {
+                        page: pageNum,
+                        limit: limitNum,
+                        total: total,
+                        totalPages: Math.ceil(total / limitNum),
+                        hasNext: endIndex < total,
+                        hasPrev: pageNum > 0
+                    },
+                    total: paginatedCustomers.length,
+                    statistics: {
+                        totalCustomers: customers.length,
+                        geocodedCustomers: geocodedCount,
+                        pendingGeocoding: pendingCount,
+                        searchResults: total,
+                        geocodingRate: customers.length > 0 ? Math.round((geocodedCount / customers.length) * 100) : 0
+                    },
+                    globalStats: globalStats,
+                    metadata: {
+                        source: 'vercel_persistent_storage',
+                        timestamp: new Date().toISOString(),
+                        filters: {
+                            search: search || null,
+                            geocoded_only: geoOnly
+                        }
+                    }
+                });
+            }
+
+            console.log('[CUSTOMERS API] No data in storage, falling back to Ploome...');
+        } catch (storageError) {
+            console.error('[CUSTOMERS API] Storage error, falling back to Ploome:', storageError);
+        }
 
         // Get Ploome credentials from environment
         const PLOOMES_API_KEY = process.env.PLOOMES_API_KEY;

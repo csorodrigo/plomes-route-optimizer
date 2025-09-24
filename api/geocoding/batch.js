@@ -1,7 +1,8 @@
-// Vercel Serverless Function for Batch Geocoding - CRITICAL FIX
-// This API will geocode customers who don't have coordinates yet
+// Vercel Serverless Function for Batch Geocoding with Persistence - CRITICAL FIX
+// This API will geocode customers who don't have coordinates yet AND SAVE THEM
 import https from 'https';
 import http from 'http';
+import kv from '../../lib/kv.js';
 
 // Node.js HTTP request utility for Vercel serverless compatibility
 function makeHttpRequest(url, options = {}) {
@@ -57,15 +58,24 @@ function makeHttpRequest(url, options = {}) {
     });
 }
 
-// Geocoding function using the existing CEP API
+// Geocoding function using OpenStreetMap Nominatim (direct call, no self-referencing)
 async function geocodeCustomerCep(cep) {
     if (!cep || cep.length !== 8) {
         return null;
     }
 
     try {
-        const response = await makeHttpRequest(`https://plomes-rota-cep.vercel.app/api/geocoding/cep/${cep}`, {
+        // Format CEP with dash: 12345678 -> 12345-678
+        const formattedCep = cep.substring(0, 5) + '-' + cep.substring(5);
+
+        // Use OpenStreetMap Nominatim directly instead of self-referencing API
+        const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=br&postalcode=${formattedCep}&limit=1`;
+
+        const response = await makeHttpRequest(nominatimUrl, {
             method: 'GET',
+            headers: {
+                'User-Agent': 'PlomesRotaCEP/1.0 (Batch Geocoding Service)'
+            },
             timeout: 6000
         });
 
@@ -74,11 +84,12 @@ async function geocodeCustomerCep(cep) {
         }
 
         const data = await response.json();
-        if (data.success && data.lat && data.lng) {
+        if (data && Array.isArray(data) && data.length > 0) {
+            const result = data[0];
             return {
-                latitude: data.lat,
-                longitude: data.lng,
-                address: data.address
+                latitude: parseFloat(result.lat),
+                longitude: parseFloat(result.lon),
+                address: result.display_name
             };
         }
 
@@ -135,6 +146,15 @@ export default async function handler(req, res) {
                 totalCustomers = data['@odata.count'] || 0;
             }
 
+            // Check how many customers are already geocoded (from storage)
+            const savedStats = await kv.get('geocoding_stats');
+            let alreadyGeocoded = 0;
+
+            if (savedStats) {
+                const stats = JSON.parse(savedStats);
+                alreadyGeocoded = stats.total_geocoded || 0;
+            }
+
             // Get sample of customers to check geocoding status
             const sampleUrl = `${PLOOMES_BASE_URL}/Contacts?$top=100&$expand=Tags&$filter=Tags/any(t: t/TagId eq ${CLIENT_TAG_ID})`;
 
@@ -152,8 +172,9 @@ export default async function handler(req, res) {
                 with_cep: 0,
                 without_cep: 0,
                 estimated_geocodable: 0,
-                needs_geocoding: totalCustomers,  // Since our current system has no geocoded customers
-                progress_percentage: 0
+                already_geocoded: alreadyGeocoded,
+                needs_geocoding: Math.max(0, totalCustomers - alreadyGeocoded),
+                progress_percentage: totalCustomers > 0 ? Math.round((alreadyGeocoded / totalCustomers) * 100) : 0
             };
 
             if (sampleResponse.ok) {
@@ -354,9 +375,59 @@ export default async function handler(req, res) {
 
         console.log(`[BATCH GEOCODING] Completed: ${results.processed} processed, ${results.geocoded} geocoded, ${results.failed} failed, ${results.skipped} skipped`);
 
+        // SAVE GEOCODED DATA TO PERSISTENT STORAGE
+        if (results.customers.length > 0) {
+            try {
+                console.log('[BATCH GEOCODING] Saving geocoded customers to storage...');
+
+                // Save individual customers
+                for (const customer of results.customers) {
+                    if (customer.latitude && customer.longitude) {
+                        const customerKey = `customer:${customer.id}`;
+                        await kv.set(customerKey, JSON.stringify(customer));
+                    }
+                }
+
+                // Update global statistics
+                const stats = await kv.get('geocoding_stats') || {
+                    total_processed: 0,
+                    total_geocoded: 0,
+                    total_failed: 0,
+                    total_skipped: 0,
+                    last_updated: null
+                };
+
+                stats.total_processed += results.processed;
+                stats.total_geocoded += results.geocoded;
+                stats.total_failed += results.failed;
+                stats.total_skipped += results.skipped;
+                stats.last_updated = new Date().toISOString();
+
+                await kv.set('geocoding_stats', JSON.stringify(stats));
+
+                // Save batch completion info
+                await kv.set(`batch:${skipCount}`, JSON.stringify({
+                    completed_at: new Date().toISOString(),
+                    batch_size: batchSize,
+                    skip_count: skipCount,
+                    results: {
+                        processed: results.processed,
+                        geocoded: results.geocoded,
+                        failed: results.failed,
+                        skipped: results.skipped
+                    }
+                }));
+
+                console.log(`[BATCH GEOCODING] ✅ Saved ${results.geocoded} geocoded customers to persistent storage`);
+            } catch (saveError) {
+                console.error('[BATCH GEOCODING] ❌ Failed to save to storage:', saveError);
+                // Don't fail the request, just log the error
+            }
+        }
+
         return res.status(200).json({
             success: true,
-            message: `Batch geocoding completed: ${results.geocoded}/${results.processed} customers geocoded`,
+            message: `Batch geocoding completed: ${results.geocoded}/${results.processed} customers geocoded and saved`,
             results: results,
             metadata: {
                 batch_size: batchSize,
@@ -364,7 +435,8 @@ export default async function handler(req, res) {
                 next_skip: skipCount + batchSize,
                 has_more: contacts.length === batchSize,
                 geocoding_rate: results.processed > 0 ? (results.geocoded / results.processed * 100).toFixed(1) + '%' : '0%',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                saved_to_storage: results.geocoded
             }
         });
 
