@@ -227,10 +227,26 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
       const { lat, lng, address } = response;
 
       if (lat && lng) {
-        const newOrigin = { lat: parseFloat(lat), lng: parseFloat(lng) };
+        // Validate coordinates to prevent NaN errors
+        const parsedLat = parseFloat(lat);
+        const parsedLng = parseFloat(lng);
+
+        if (isNaN(parsedLat) || isNaN(parsedLng)) {
+          console.error('Invalid coordinates received:', { lat, lng });
+          toast.error(t('messages.errorSearchingCEP'));
+          return;
+        }
+
+        const newOrigin = { lat: parsedLat, lng: parsedLng };
         setOrigin(newOrigin);
-        setOriginAddress(address || '');
-        setMapCenter([newOrigin.lat, newOrigin.lng]);
+
+        // CRITICAL FIX: Handle address object properly to prevent React Error #31
+        const formattedAddress = address?.formatted ||
+                               (typeof address === 'string' ? address : '') ||
+                               `${parsedLat.toFixed(4)}, ${parsedLng.toFixed(4)}`;
+
+        setOriginAddress(formattedAddress);
+        setMapCenter([parsedLat, parsedLng]);
         setZoom(14);
         toast.success(t('messages.originSet'));
       } else {
