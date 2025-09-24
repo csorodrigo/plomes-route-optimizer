@@ -102,7 +102,7 @@ const apiService = {
   testPloomeConnection: () => api.get('/api/test-connection'),
 
   // CEP services
-  getCepInfo: (cep) => api.get(`/api/geocoding/cep/${cep}`),
+  getCepInfo: (cep) => api.get(`/api/geocoding/cep?cep=${cep}`),
 
   // Geocoding queue management
   startGeocoding: () => api.post('/api/geocode/start'),
