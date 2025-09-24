@@ -134,6 +134,12 @@ const AppLayout = () => {
             <MainApp initialView="sync" />
           </ProtectedRoute>
         } />
+        <Route path="/geocoding" element={
+          <ProtectedRoute>
+            <Header />
+            <MainApp initialView="geocoding" />
+          </ProtectedRoute>
+        } />
         <Route path="/settings" element={
           <ProtectedRoute>
             <Header />

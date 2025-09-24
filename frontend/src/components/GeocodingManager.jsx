@@ -41,17 +41,30 @@ const GeocodingManager = ({ onGeocodingComplete }) => {
 
   const loadGeocodingProgress = useCallback(async () => {
     try {
-      const response = await fetch('/api/geocoding/progress');
-      const data = await response.json();
+      // Use the statistics API to get customer data and calculate geocoding progress
+      const response = await api.getStatistics();
+      console.log('GeocodingManager - statistics response:', response);
 
-      if (data.success) {
-        setProgress(data.geocoding_progress);
+      const stats = response.statistics || response;
 
-        // Calculate total batches needed
-        const batchSize = 50;
-        const totalBatches = Math.ceil(data.geocoding_progress.estimated_geocodable / batchSize);
-        setTotalBatches(totalBatches);
-      }
+      // Calculate geocoding progress from statistics
+      const progressData = {
+        total: stats.totalCustomers || 0,
+        geocoded: stats.geocodedCustomers || 0,
+        with_cep: stats.customersWithCep || 0,
+        without_cep: (stats.totalCustomers || 0) - (stats.customersWithCep || 0),
+        needs_geocoding: (stats.customersWithCep || 0) - (stats.geocodedCustomers || 0),
+        estimated_geocodable: stats.customersWithCep || 0
+      };
+
+      setProgress(progressData);
+
+      // Calculate total batches needed
+      const batchSize = 50;
+      const totalBatches = Math.ceil(progressData.estimated_geocodable / batchSize);
+      setTotalBatches(totalBatches);
+
+      console.log('GeocodingManager - calculated progress:', progressData);
     } catch (error) {
       console.error('Error loading geocoding progress:', error);
       toast.error('Erro ao carregar progresso do geocoding');
@@ -87,14 +100,8 @@ const GeocodingManager = ({ onGeocodingComplete }) => {
         setCurrentBatch(batchNumber);
 
         try {
-          const response = await fetch(`/api/geocoding/batch?batch_size=${batchSize}&skip=${skip}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          });
-
-          const batchResult = await response.json();
+          // Use API service for batch geocoding
+          const batchResult = await api.startBatchGeocoding(batchSize, skip);
 
           if (batchResult.success) {
             totalProcessed += batchResult.results.processed;
@@ -185,6 +192,41 @@ const GeocodingManager = ({ onGeocodingComplete }) => {
         Geocodifique todos os clientes em lotes para otimizar o desempenho do mapa.
       </Typography>
 
+      {/* Sync Status Check */}
+      {progress && progress.total === 0 && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            Geocodificação será iniciada após a sincronização dos clientes com o Ploomes.
+          </Typography>
+          <Typography variant="body2">
+            Execute primeiro a sincronização na página "Sincronizar" para baixar os clientes.
+          </Typography>
+        </Alert>
+      )}
+
+      {/* Show availability status */}
+      {progress && progress.total > 0 && progress.needs_geocoding > 0 && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            <strong>{progress.needs_geocoding} clientes</strong> estão prontos para geocodificação.
+          </Typography>
+          <Typography variant="body2">
+            Total de clientes sincronizados: <strong>{progress.total}</strong>
+          </Typography>
+        </Alert>
+      )}
+
+      {progress && progress.total > 0 && progress.needs_geocoding === 0 && (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            Todos os clientes com CEP já foram geocodificados!
+          </Typography>
+          <Typography variant="body2">
+            <strong>{progress.geocoded}/{progress.total}</strong> clientes geocodificados
+          </Typography>
+        </Alert>
+      )}
+
       <Grid container spacing={3}>
         {/* Progress Overview */}
         <Grid item xs={12} md={6}>
@@ -251,9 +293,14 @@ const GeocodingManager = ({ onGeocodingComplete }) => {
                     startIcon={<PlayIcon />}
                     onClick={startBatchGeocoding}
                     fullWidth
-                    disabled={!progress}
+                    disabled={!progress || progress.total === 0 || progress.needs_geocoding === 0}
                   >
-                    Iniciar Geocodificação em Lote
+                    {progress?.total === 0
+                      ? 'Aguardando sincronização...'
+                      : progress?.needs_geocoding === 0
+                        ? 'Todos já geocodificados'
+                        : 'Iniciar Geocodificação em Lote'
+                    }
                   </Button>
                 ) : (
                   <Button

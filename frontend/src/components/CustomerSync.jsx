@@ -61,15 +61,26 @@ const CustomerSync = ({ onSyncComplete }) => {
 
   const loadSyncStatus = useCallback(async () => {
     try {
-      const status = await api.getPloomeStatus();
-      
-      if (status.lastSync) {
-        setLastSync(status.lastSync);
+      const response = await api.getPloomeStatus();
+      console.log('CustomerSync - loadSyncStatus response:', response);
+
+      // Handle the API response format: { success: true, statistics: {...} }
+      const stats = response.statistics || response;
+
+      if (stats.lastSync) {
+        setLastSync(stats.lastSync);
       }
 
-      if (status.customers) {
-        setCustomersStats(status.customers);
-      }
+      // Update customer statistics from the API response
+      const customerStats = {
+        total: stats.totalCustomers || 0,
+        geocoded: stats.geocodedCustomers || 0,
+        withAddress: stats.customersWithCep || 0,
+        errors: stats.errorCount || 0
+      };
+      setCustomersStats(customerStats);
+
+      console.log('CustomerSync - parsed stats:', customerStats);
     } catch (error) {
       console.error('Error loading sync status:', error);
     }
@@ -98,13 +109,20 @@ const CustomerSync = ({ onSyncComplete }) => {
   }, []);
 
   const simulateSyncProgress = useCallback((response) => {
+    console.log('CustomerSync - simulateSyncProgress received:', response);
+
+    // Extract customer count from response for progress messages
+    const syncDetails = response.details || {};
+    // Backend returns fetched/updated in details object
+    const customerCount = syncDetails.fetched || syncDetails.updated || response.customers?.length || 0;
+
     const steps = [
       { progress: 10, message: 'Conectando ao Ploomes...', type: 'info' },
       { progress: 25, message: 'Buscando contatos...', type: 'info' },
-      { progress: 45, message: 'Processando dados...', type: 'info' },
+      { progress: 45, message: `Processando ${customerCount} clientes encontrados...`, type: 'info' },
       { progress: 65, message: 'Geocodificando endereços...', type: 'info' },
       { progress: 85, message: 'Salvando no banco de dados...', type: 'info' },
-      { progress: 100, message: 'Sincronização concluída!', type: 'success' }
+      { progress: 100, message: `Sincronização concluída! ${customerCount} clientes processados.`, type: 'success' }
     ];
 
     let currentStep = 0;
@@ -163,21 +181,30 @@ const CustomerSync = ({ onSyncComplete }) => {
     setIsSync(false);
     setSyncProgress(100);
     setSyncStatus('Concluído');
-    
-    // Update stats
-    if (response.stats) {
-      setCustomersStats(response.stats);
-    }
-    
+
+    console.log('CustomerSync - handleSyncComplete response:', response);
+
+    // Update stats - backend returns response.details containing sync info
+    const syncDetails = response.details || {};
+    // Backend returns fetched/updated in details object
+    const customerCount = syncDetails.fetched || syncDetails.updated || response.customers?.length || 0;
+
+    // Update customer stats with the sync results
+    setCustomersStats(prev => ({
+      ...prev,
+      total: customerCount,
+      withAddress: customerCount // Assume synced customers have addresses
+    }));
+
     setLastSync({
       completed_at: new Date().toISOString(),
-      customers_synced: response.customersSynced || 0,
-      customers_geocoded: response.customersGeocoded || 0,
-      errors: response.errors || 0
+      customers_synced: customerCount,
+      customers_geocoded: syncDetails.geocoded || 0,
+      errors: syncDetails.errors || 0
     });
 
-    toast.success(`Sincronização concluída! ${response.customersSynced} clientes processados.`);
-    
+    toast.success(`Sincronização concluída! ${customerCount} clientes processados.`);
+
     if (onSyncComplete) {
       onSyncComplete();
     }
