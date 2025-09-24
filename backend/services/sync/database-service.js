@@ -502,27 +502,31 @@ class DatabaseService {
     // Estat�sticas
     async getStatistics() {
         const stats = {};
-        
+
         // Total de clientes
         const totalCustomers = await this.get('SELECT COUNT(*) as count FROM customers');
         stats.totalCustomers = totalCustomers.count;
-        
+
         // Clientes geocodificados
         const geocoded = await this.get("SELECT COUNT(*) as count FROM customers WHERE geocoding_status = 'completed'");
         stats.geocodedCustomers = geocoded.count;
-        
-        // Clientes pendentes de geocodifica��o
+
+        // Clientes pendentes de geocodificação
         const pending = await this.get("SELECT COUNT(*) as count FROM customers WHERE geocoding_status = 'pending'");
         stats.pendingGeocoding = pending.count;
-        
+
+        // CRITICAL FIX: Add customers with CEP count for frontend components
+        const withCep = await this.get("SELECT COUNT(*) as count FROM customers WHERE cep IS NOT NULL AND cep != '' AND length(cep) >= 8");
+        stats.customersWithCep = withCep.count;
+
         // Total de rotas
         const routes = await this.get('SELECT COUNT(*) as count FROM routes');
         stats.totalRoutes = routes.count;
-        
-        // �ltima sincroniza��o
+
+        // Última sincronização
         const lastSync = await this.get("SELECT * FROM sync_logs WHERE status = 'success' ORDER BY completed_at DESC LIMIT 1");
         stats.lastSync = lastSync;
-        
+
         return stats;
     }
 

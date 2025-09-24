@@ -876,11 +876,14 @@ app.get('/api/customers',
                 parseFloat(radius)
             );
         } else {
-            // Get customers with coordinates prioritized and filter by "Cliente" tag
-            const query = status 
+            // CRITICAL FIX: Return ALL customers with "Cliente" tag, not just geocoded ones
+            // This was causing the 300 vs 2253 customer count issue
+            const query = status
                 ? `SELECT * FROM customers WHERE geocoding_status = ? AND tags LIKE '%"Cliente"%'`
-                : `SELECT * FROM customers WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND tags LIKE '%"Cliente"%'`;
-            
+                : `SELECT * FROM customers WHERE tags LIKE '%"Cliente"%' ORDER BY
+                   CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 0 ELSE 1 END,
+                   name ASC`;
+
             const rawCustomers = await db.all(query, status ? [status] : []);
             customers = db.parseTags(rawCustomers);
         }

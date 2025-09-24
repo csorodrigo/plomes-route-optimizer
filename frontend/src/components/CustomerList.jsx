@@ -42,11 +42,30 @@ const CustomerList = () => {
     setLoading(true);
     try {
       const response = await api.getCustomers();
-      const customerList = response.customers || response;
-      setCustomers(customerList);
+      console.log('CustomerList - API response:', response);
+
+      // CRITICAL FIX: Handle different response formats and ensure array
+      let customerList = [];
+
+      if (response && response.customers && Array.isArray(response.customers)) {
+        customerList = response.customers;
+      } else if (response && Array.isArray(response)) {
+        customerList = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        customerList = response.data;
+      } else {
+        console.warn('CustomerList - Unexpected response format:', response);
+        customerList = [];
+      }
+
+      // Ensure we always have an array to prevent "t.filter is not a function" errors
+      setCustomers(Array.isArray(customerList) ? customerList : []);
+
       toast.success(`${customerList.length} clientes carregados`);
     } catch (error) {
+      console.error('CustomerList - Error loading customers:', error);
       toast.error('Erro ao carregar clientes: ' + error.message);
+      setCustomers([]); // Ensure empty array on error
     } finally {
       setLoading(false);
     }
@@ -125,16 +144,20 @@ const CustomerList = () => {
     a.click();
   };
 
-  const filteredCustomers = customers.filter(customer => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      customer.name?.toLowerCase().includes(search) ||
-      customer.cep?.includes(search) ||
-      customer.city?.toLowerCase().includes(search) ||
-      customer.street_address?.toLowerCase().includes(search)
-    );
-  });
+  // CRITICAL FIX: Ensure customers is always an array before filtering
+  const filteredCustomers = Array.isArray(customers)
+    ? customers.filter(customer => {
+        if (!searchTerm) return true;
+        const search = searchTerm.toLowerCase();
+        return (
+          customer.name?.toLowerCase().includes(search) ||
+          customer.cep?.includes(search) ||
+          customer.city?.toLowerCase().includes(search) ||
+          customer.address?.toLowerCase().includes(search) ||
+          customer.street_address?.toLowerCase().includes(search)
+        );
+      })
+    : [];
 
   const paginatedCustomers = filteredCustomers.slice(
     page * rowsPerPage,
