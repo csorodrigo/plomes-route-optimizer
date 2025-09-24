@@ -28,7 +28,15 @@ export default async function handler(req, res) {
         } else if (req.method === 'GET') {
             // Extract CEP from URL path /api/geocoding/cep/[cep]
             const urlParts = req.url.split('/');
-            cep = urlParts[urlParts.length - 1];
+            const lastPart = urlParts[urlParts.length - 1];
+            // Check if URL has CEP parameter or query string
+            if (lastPart && lastPart !== 'cep' && !lastPart.includes('?')) {
+                cep = lastPart;
+            } else {
+                // Try to get from query parameters
+                const url = new URL(req.url, `https://${req.headers.host}`);
+                cep = url.searchParams.get('cep');
+            }
         }
 
         if (!cep) {

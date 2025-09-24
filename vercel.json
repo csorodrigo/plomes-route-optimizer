@@ -7,6 +7,10 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/api/geocoding/cep/([^/]+)",
+      "destination": "/api/geocoding/cep?cep=$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/frontend/build/index.html"
     }
