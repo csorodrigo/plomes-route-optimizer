@@ -160,12 +160,13 @@ export default async function handler(req, res) {
                 const sampleData = await sampleResponse.json();
                 const customers = sampleData.value || [];
 
-                // Analyze sample to estimate geocoding potential
+                // FIXED: Analyze sample to estimate geocoding potential
                 let sampleWithCep = 0;
                 let sampleWithoutCep = 0;
 
                 for (const customer of customers) {
-                    const cep = customer.Address?.ZipCode?.replace(/\D/g, '');
+                    // FIXED: CEP is at contact level, not in Address object
+                    const cep = customer.ZipCode ? customer.ZipCode.toString().replace(/\D/g, '') : '';
                     if (cep && cep.length === 8) {
                         sampleWithCep++;
                     } else {
@@ -283,8 +284,8 @@ export default async function handler(req, res) {
             for (const contact of subBatch) {
                 results.processed++;
 
-                // Extract CEP from contact
-                const cep = contact.Address?.ZipCode?.replace(/\D/g, '');
+                // FIXED: Extract CEP from contact (CEP is at contact level, not contact.Address)
+                const cep = contact.ZipCode ? contact.ZipCode.toString().replace(/\D/g, '') : '';
 
                 if (!cep || cep.length !== 8) {
                     console.log(`[BATCH GEOCODING] Skipping customer ${contact.Id}: Invalid/missing CEP`);
@@ -296,10 +297,10 @@ export default async function handler(req, res) {
                         name: contact.Name || 'Nome não informado',
                         email: contact.Email || '',
                         phone: contact.Phones && contact.Phones.length > 0 ? contact.Phones[0].PhoneNumber : '',
-                        address: contact.Address?.Street || '',
+                        address: contact.StreetAddress || '',
                         cep: cep || '',
-                        city: contact.Address?.City || '',
-                        state: contact.Address?.State || '',
+                        city: contact.City ? contact.City.Name : '',
+                        state: '', // StateId lookup would be needed for state name
                         latitude: null,
                         longitude: null,
                         ploome_person_id: contact.Id.toString(),
@@ -317,10 +318,10 @@ export default async function handler(req, res) {
                     name: contact.Name || 'Nome não informado',
                     email: contact.Email || '',
                     phone: contact.Phones && contact.Phones.length > 0 ? contact.Phones[0].PhoneNumber : '',
-                    address: contact.Address?.Street || '',
+                    address: contact.StreetAddress || '',
                     cep: cep,
-                    city: contact.Address?.City || '',
-                    state: contact.Address?.State || '',
+                    city: contact.City ? contact.City.Name : '',
+                    state: '', // StateId lookup would be needed for state name
                     ploome_person_id: contact.Id.toString()
                 };
 

@@ -246,25 +246,26 @@ export default async function handler(req, res) {
                 let city = '';
                 let state = '';
 
-                // Extract address information from Ploome contact
-                if (contact.Address) {
-                    address = contact.Address.Street || '';
-                    cep = contact.Address.ZipCode || '';
-                    city = contact.Address.City || '';
-                    state = contact.Address.State || '';
+                // FIXED: Extract address information from Ploome contact (CEP is at contact level, not contact.Address)
+                // Build address from contact-level fields (not nested Address object)
+                address = contact.StreetAddress || '';
+                cep = contact.ZipCode ? contact.ZipCode.toString().replace(/\D/g, '') : '';
+                // Get city name from expanded City object
+                city = contact.City ? contact.City.Name : '';
+                // Note: State name would need StateId lookup - for now use empty string
+                state = '';
 
-                    if (contact.Address.Number) {
-                        address += `, ${contact.Address.Number}`;
-                    }
-                    if (contact.Address.District) {
-                        address += `, ${contact.Address.District}`;
-                    }
-                    if (city) {
-                        address += `, ${city}`;
-                    }
-                    if (state) {
-                        address += `, ${state}`;
-                    }
+                if (contact.StreetAddressNumber) {
+                    address += `, ${contact.StreetAddressNumber}`;
+                }
+                if (contact.StreetAddressLine2) {
+                    address += `, ${contact.StreetAddressLine2}`;
+                }
+                if (contact.Neighborhood) {
+                    address += `, ${contact.Neighborhood}`;
+                }
+                if (city) {
+                    address += `, ${city}`;
                 }
 
                 // CRITICAL FIX: Skip geocoding for performance with large datasets
