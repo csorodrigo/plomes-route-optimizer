@@ -113,8 +113,10 @@ PLOOME_API_URL=https://public-api2.ploomes.com
 PORT=3001
 NODE_ENV=development
 
-# Database
-DATABASE_PATH=./backend/cache/customers.db
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-public-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # Rate Limiting
 API_RATE_LIMIT_PER_MINUTE=120

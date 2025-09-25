@@ -2,166 +2,129 @@
 
 /**
  * EMERGENCY DATABASE CLEANUP
- * 
- * This script forces a complete database cleanup and re-sync
- * Use this when auto-fix-database.js fails or doesn't trigger
- * 
- * Usage: node backend/emergency-cleanup.js
+ *
+ * Forces a complete wipe of customer data followed by a fresh sync that only
+ * keeps contacts tagged as "Cliente". Use this when automatic recovery fails.
  */
 
 require('dotenv').config();
 const DatabaseService = require('./services/sync/database-service');
 const PloomeService = require('./services/sync/ploome-service');
-const fs = require('fs');
-
-console.log(`
-╔══════════════════════════════════════════════════════════╗
-║         🚨 EMERGENCY DATABASE CLEANUP SCRIPT 🚨           ║
-║                                                            ║
-║  This will:                                                ║
-║  1. Backup current database                                ║
-║  2. DELETE ALL customer data                               ║
-║  3. Re-sync ONLY customers with "Cliente" tag              ║
-║                                                            ║
-║  Environment: ${process.env.NODE_ENV || 'development'}                                    ║
-╚══════════════════════════════════════════════════════════╝
-`);
 
 async function emergencyCleanup() {
-    let db;
-    
+    const db = new DatabaseService();
+    let ploomeService;
+
     try {
-        // Step 1: Initialize database
-        console.log('\n📂 Initializing database...');
-        db = new DatabaseService();
-        await db.initialize();
-        
-        // Step 2: Show current state
+        console.log('\n🚨 EMERGENCY DATABASE CLEANUP\n');
+        await db.ensureInitialized();
+
         const beforeStats = await db.getStatistics();
-        console.log(`\n📊 BEFORE CLEANUP:`);
-        console.log(`   Total customers: ${beforeStats.totalCustomers}`);
-        console.log(`   With coordinates: ${beforeStats.withCoordinates}`);
-        console.log(`   Without coordinates: ${beforeStats.withoutCoordinates}`);
-        
-        // Step 3: Backup database
-        console.log('\n💾 Creating backup...');
-        const dbPath = db.dbPath;
-        const backupPath = dbPath + '.emergency-backup-' + Date.now();
-        if (fs.existsSync(dbPath)) {
-            fs.copyFileSync(dbPath, backupPath);
-            console.log(`✅ Backup saved to: ${backupPath}`);
+        console.log('📊 BEFORE CLEANUP:');
+        console.log(`   • Total customers: ${beforeStats.totalCustomers}`);
+        console.log(`   • With coordinates: ${beforeStats.withCoordinates}`);
+        console.log(`   • Without coordinates: ${beforeStats.withoutCoordinates}\n`);
+
+        console.log('🗑️  Removing existing data...');
+        await db.deleteAllRoutes();
+        await db.deleteAllSyncLogs();
+        await db.deleteAllGeocodingCache();
+        await db.deleteAllCustomers();
+        console.log('✅ Data cleared\n');
+
+        console.log('🔌 Connecting to Ploome API...');
+        ploomeService = new PloomeService(process.env.PLOOME_API_KEY);
+        if (!await ploomeService.testConnection()) {
+            throw new Error('Cannot connect to Ploome API. Check the PLOOME_API_KEY variable.');
         }
-        
-        // Step 4: FORCE DELETE ALL DATA
-        console.log('\n🗑️  DELETING ALL DATA...');
-        await db.run('DELETE FROM customers');
-        await db.run('DELETE FROM sync_logs');
-        await db.run('DELETE FROM routes');
-        console.log('✅ All data deleted');
-        
-        // Step 5: Recreate structure
-        console.log('\n🏗️  Recreating database structure...');
-        await db.createTables();
-        await db.runMigrations();
-        await db.createIndexes();
-        console.log('✅ Database structure recreated');
-        
-        // Step 6: Connect to Ploome
-        console.log('\n🔌 Connecting to Ploome API...');
-        const ploomeService = new PloomeService(process.env.PLOOME_API_KEY);
-        
-        // Show which CLIENT_TAG_ID we're using
-        console.log(`🎯 Using CLIENT_TAG_ID: ${ploomeService.CLIENT_TAG_ID}`);
-        
-        // Test connection
-        const connectionOk = await ploomeService.testConnection();
-        if (!connectionOk) {
-            throw new Error('Cannot connect to Ploome API - check your API key');
-        }
-        console.log('✅ Connected to Ploome API');
-        
-        // Step 7: Fetch tags to ensure proper filtering
-        console.log('\n🏷️  Loading tag definitions...');
+
         await ploomeService.fetchTags();
-        console.log(`✅ ${ploomeService.tagCache.size} tags loaded`);
-        
-        // Find and display the "Cliente" tag
-        let clienteTagFound = false;
-        for (const [tagId, tagName] of ploomeService.tagCache) {
-            if (tagName.toLowerCase().includes('cliente')) {
-                console.log(`   Found: Tag "${tagName}" with ID ${tagId}`);
-                if (tagId === ploomeService.CLIENT_TAG_ID) {
-                    clienteTagFound = true;
-                    console.log(`   ✅ This matches our CLIENT_TAG_ID!`);
-                }
-            }
-        }
-        
-        if (!clienteTagFound) {
-            console.log(`   ⚠️ WARNING: Tag ID ${ploomeService.CLIENT_TAG_ID} may not be "Cliente"`);
-        }
-        
-        // Step 8: Sync ONLY customers with "Cliente" tag
-        console.log('\n📥 Starting sync (ONLY "Cliente" tagged contacts)...');
+        console.log(`✅ Loaded ${ploomeService.tagCache.size} tags\n`);
+        console.log('📥 Importing contacts tagged as "Cliente"...');
+
+        const syncStartedAt = new Date().toISOString();
         let progressCount = 0;
         const customers = await ploomeService.fetchAllContacts((progress) => {
             progressCount++;
             if (progressCount % 10 === 0) {
-                process.stdout.write(`\r   📈 Progress: ${progress.fetched} customers imported...`);
+                process.stdout.write(`\r   📈 Progress: ${progress.fetched} customers fetched...`);
             }
         });
-        
-        console.log(`\n✅ ${customers.length} customers with "Cliente" tag imported`);
-        
-        // Step 9: Save to database
+        process.stdout.write('\n');
+        console.log(`✅ ${customers.length} customers imported\n`);
+
+        let result = { successCount: 0, errorCount: 0 };
         if (customers.length > 0) {
-            console.log('\n💾 Saving to database...');
-            const result = await db.upsertCustomersBatch(customers);
+            console.log('💾 Saving customers to Supabase...');
+            result = await db.upsertCustomersBatch(customers);
             console.log(`✅ ${result.successCount} customers saved`);
             if (result.errorCount > 0) {
-                console.log(`⚠️  ${result.errorCount} errors during save`);
+                console.log(`⚠️  ${result.errorCount} customers failed to save`);
             }
         }
-        
-        // Step 10: Show final state
+
         const afterStats = await db.getStatistics();
-        console.log(`\n📊 AFTER CLEANUP:`);
-        console.log(`   Total customers: ${afterStats.totalCustomers}`);
-        console.log(`   With coordinates: ${afterStats.withCoordinates}`);
-        console.log(`   Without coordinates: ${afterStats.withoutCoordinates}`);
-        
-        // Step 11: Log the cleanup
-        await db.logSync('emergency-cleanup', afterStats.totalCustomers, 'Emergency database cleanup completed');
-        
-        // Success summary
+        console.log('\n📊 AFTER CLEANUP:');
+        console.log(`   • Total customers: ${afterStats.totalCustomers}`);
+        console.log(`   • With coordinates: ${afterStats.withCoordinates}`);
+        console.log(`   • Without coordinates: ${afterStats.withoutCoordinates}`);
+
+        await db.logSync({
+            type: 'emergency-cleanup',
+            fetched: customers.length,
+            updated: result.successCount,
+            errors: result.errorCount,
+            startedAt: syncStartedAt,
+            completedAt: new Date().toISOString(),
+            status: result.errorCount > 0 ? 'partial' : 'success',
+            errorMessage: result.errorCount > 0 ? 'Some customers failed during emergency cleanup' : null
+        });
+
         console.log(`
 ╔══════════════════════════════════════════════════════════╗
 ║              ✅ CLEANUP COMPLETED SUCCESSFULLY             ║
 ║                                                            ║
 ║  Before: ${String(beforeStats.totalCustomers).padEnd(6)} customers                              ║
-║  After:  ${String(afterStats.totalCustomers).padEnd(6)} customers (only "Cliente" tag)       ║
+║  After:  ${String(afterStats.totalCustomers).padEnd(6)} customers ("Cliente" tag only)     ║
 ║                                                            ║
 ║  Database is now clean and ready!                         ║
 ╚══════════════════════════════════════════════════════════╝
         `);
-        
+
     } catch (error) {
         console.error('\n❌ EMERGENCY CLEANUP FAILED!');
         console.error('   Error:', error.message);
         console.error('   Stack:', error.stack);
+
+        try {
+            await db.logSync({
+                type: 'emergency-cleanup-error',
+                fetched: 0,
+                updated: 0,
+                errors: 1,
+                startedAt: new Date().toISOString(),
+                completedAt: new Date().toISOString(),
+                status: 'error',
+                errorMessage: error.message
+            });
+        } catch (logError) {
+            console.error('⚠️  Failed to log cleanup error:', logError.message);
+        }
+
         process.exit(1);
     } finally {
-        if (db) {
-            await db.close();
-        }
+        await db.close();
     }
 }
 
-// Run the cleanup
-emergencyCleanup().then(() => {
-    console.log('\n✅ Emergency cleanup complete');
-    process.exit(0);
-}).catch(error => {
-    console.error('\n❌ Emergency cleanup failed:', error);
-    process.exit(1);
-});
+if (require.main === module) {
+    emergencyCleanup().then(() => {
+        console.log('\n✅ Emergency cleanup complete');
+        process.exit(0);
+    }).catch((err) => {
+        console.error('\n❌ Emergency cleanup failed:', err);
+        process.exit(1);
+    });
+}
+
+module.exports = emergencyCleanup;

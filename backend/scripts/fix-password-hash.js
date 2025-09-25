@@ -25,14 +25,21 @@ async function fixPasswordHashes() {
     try {
         // Inicializar base de dados
         console.log('🔄 Inicializando banco de dados...');
-        await db.initialize();
+        await db.ensureInitialized();
         
         console.log('🔄 Inicializando serviço de autenticação...');
         await auth.initialize();
         
         // Verificar usuários existentes
         console.log('🔍 Verificando usuários na base de dados...');
-        const users = await db.all('SELECT id, email, password_hash FROM users');
+        const { data: users, error: usersError } = await db.client
+            .from('legacy_users')
+            .select('id, email, password_hash');
+
+        if (usersError) {
+            throw usersError;
+        }
+
         console.log(`📊 Encontrados ${users.length} usuários`);
         
         let updatedCount = 0;
@@ -48,10 +55,7 @@ async function fixPasswordHashes() {
                 if (defaultPassword) {
                     const newHash = await auth.hashPassword(defaultPassword);
                     
-                    await db.run(
-                        'UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                        [newHash, user.id]
-                    );
+                    await db.updateUserPassword(user.id, newHash);
                     
                     console.log(`✅ Hash atualizado para usuário ${user.email}`);
                     updatedCount++;

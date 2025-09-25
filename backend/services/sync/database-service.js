@@ -1,716 +1,925 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
+const { supabase, supabaseAdmin } = require('../../database/supabase');
+const crypto = require('crypto');
+
+const client = supabaseAdmin || supabase;
+
+function chunkArray(items, size) {
+    if (!Array.isArray(items) || items.length === 0) {
+        return [];
+    }
+    const chunks = [];
+    for (let i = 0; i < items.length; i += size) {
+        chunks.push(items.slice(i, i + size));
+    }
+    return chunks;
+}
+
+function normalizeTags(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) return parsed;
+        } catch (_) {
+            const parts = value.split(',').map(part => part.trim()).filter(Boolean);
+            if (parts.length > 0) return parts;
+        }
+    }
+    return [];
+}
+
+function toIso(value) {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+    return date.toISOString();
+}
+
+function toNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const result = Number(value);
+    return Number.isFinite(result) ? result : null;
+}
+
+function generateId() {
+    const timestamp = Date.now();
+    const randomPart = Math.floor(Math.random() * 1000);
+    return Number(`${timestamp}${randomPart.toString().padStart(3, '0')}`);
+}
 
 class DatabaseService {
-    constructor(dbPath = null) {
-        // Optimize database path for different environments
-        if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_GIT_COMMIT_SHA) {
-            // Railway: Use /tmp for ephemeral storage
-            this.dbPath = dbPath || process.env.DATABASE_PATH || '/tmp/customers.db';
-        } else {
-            // Local/other: Use cache directory
-            this.dbPath = dbPath || process.env.DATABASE_PATH || './cache/customers.db';
-        }
-        this.db = null;
+    constructor() {
+        this.client = client;
+        this.publicClient = supabase;
         this.isInitialized = false;
         this.initializationPromise = null;
-        this.ensureDirectoryExists();
     }
 
-    ensureDirectoryExists() {
-        const dir = path.dirname(this.dbPath);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
+    async ensureInitialized() {
+        if (this.isInitialized) return;
+        if (!this.initializationPromise) {
+            this.initializationPromise = this.initialize();
         }
-    }
-
-    async connect() {
-        return new Promise((resolve, reject) => {
-            // Add timeout for Railway environment
-            const timeout = setTimeout(() => {
-                reject(new Error('Database connection timeout after 10 seconds'));
-            }, 10000);
-
-            try {
-                // Check if database file exists and is valid
-                const dbExists = fs.existsSync(this.dbPath);
-                const dbStats = dbExists ? fs.statSync(this.dbPath) : null;
-
-                if (dbExists && dbStats && dbStats.size === 0) {
-                    console.log('⚠️  Database file is empty (0 bytes), removing...');
-                    fs.unlinkSync(this.dbPath);
-                }
-
-                this.db = new sqlite3.Database(this.dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
-                    clearTimeout(timeout);
-                    if (err) {
-                        console.error('Error opening database:', err);
-                        reject(err);
-                    } else {
-                        console.log('✅ Connected to SQLite database:', this.dbPath);
-                        // Enable WAL mode for better performance
-                        this.db.run('PRAGMA journal_mode=WAL;');
-                        resolve();
-                    }
-                });
-            } catch (error) {
-                clearTimeout(timeout);
-                reject(error);
-            }
-        });
-    }
-
-    async initialize() {
-        // Prevent multiple concurrent initializations
-        if (this.isInitialized) {
-            return;
-        }
-
-        if (this.initializationPromise) {
-            return this.initializationPromise;
-        }
-
-        this.initializationPromise = this._doInitialize();
         return this.initializationPromise;
     }
 
-    async _doInitialize() {
+    async initialize() {
+        if (this.isInitialized) return;
+
         try {
-            await this.connect();
-            await this.createTables();
-            await this.runMigrations();
-            await this.createIndexes();
-            await this.createDefaultUser();
+            try {
+                await this.client.rpc('create_customers_table_if_not_exists', {});
+            } catch (_) {}
+
+            try {
+                await this.client.rpc('create_geocoding_stats_table_if_not_exists', {});
+            } catch (_) {}
+
+            try {
+                await this.client.rpc('create_batch_logs_table_if_not_exists', {});
+            } catch (_) {}
+
+            // Simple connectivity check
+            await this.client
+                .from('customers')
+                .select('id')
+                .limit(1);
+
             this.isInitialized = true;
-            console.log('✅ Database initialized successfully');
         } catch (error) {
             this.initializationPromise = null;
             throw error;
         }
     }
 
-    async ensureInitialized() {
-        if (!this.isInitialized) {
-            await this.initialize();
-        }
-    }
-
     async createTables() {
-        const queries = [
-            // Tabela de clientes
-            `CREATE TABLE IF NOT EXISTS customers (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                cnpj TEXT,
-                cpf TEXT,
-                email TEXT,
-                phone TEXT,
-                cep TEXT,
-                street_address TEXT,
-                street_number TEXT,
-                street_complement TEXT,
-                neighborhood TEXT,
-                city TEXT,
-                state TEXT,
-                full_address TEXT,
-                tags TEXT,
-                latitude REAL,
-                longitude REAL,
-                geocoding_status TEXT DEFAULT 'pending',
-                geocoding_attempts INTEGER DEFAULT 0,
-                last_geocoding_attempt DATETIME,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-
-            // Tabela de usuários
-            `CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                name TEXT NOT NULL,
-                is_active INTEGER DEFAULT 1,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_login DATETIME
-            )`,
-
-            // Tabela de sessões de usuários
-            `CREATE TABLE IF NOT EXISTS user_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                token_hash TEXT NOT NULL,
-                expires_at DATETIME NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                user_agent TEXT,
-                ip_address TEXT,
-                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-            )`,
-
-            // Tabela de cache de geocodifica��o
-            `CREATE TABLE IF NOT EXISTS geocoding_cache (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                address TEXT UNIQUE,
-                latitude REAL,
-                longitude REAL,
-                provider TEXT,
-                accuracy TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                expires_at DATETIME
-            )`,
-
-            // Tabela de rotas otimizadas
-            `CREATE TABLE IF NOT EXISTS routes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
-                origin_cep TEXT,
-                origin_lat REAL,
-                origin_lng REAL,
-                waypoints TEXT,
-                optimized_order TEXT,
-                total_distance REAL,
-                estimated_time INTEGER,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-
-            // Tabela de logs de sincroniza��o
-            `CREATE TABLE IF NOT EXISTS sync_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sync_type TEXT,
-                records_fetched INTEGER,
-                records_updated INTEGER,
-                errors INTEGER,
-                started_at DATETIME,
-                completed_at DATETIME,
-                status TEXT,
-                error_message TEXT
-            )`
-        ];
-
-        for (const query of queries) {
-            await this.run(query);
-        }
-        
-        console.log('✅ Database tables created successfully');
+        return Promise.resolve();
     }
 
     async runMigrations() {
-        try {
-            // Migration 1: Add tags column to customers table if it doesn't exist
-            const tableInfo = await this.all("PRAGMA table_info(customers)");
-            const hasTagsColumn = tableInfo.some(column => column.name === 'tags');
-            
-            if (!hasTagsColumn) {
-                console.log('🔄 Adding tags column to customers table...');
-                await this.run('ALTER TABLE customers ADD COLUMN tags TEXT');
-                console.log('✅ Tags column added successfully');
-            }
-        } catch (error) {
-            console.error('Migration error:', error);
-            // Don't throw error to avoid breaking initialization
-        }
+        return Promise.resolve();
     }
 
     async createIndexes() {
-        const indexes = [
-            'CREATE INDEX IF NOT EXISTS idx_customers_cep ON customers(cep)',
-            'CREATE INDEX IF NOT EXISTS idx_customers_coords ON customers(latitude, longitude)',
-            'CREATE INDEX IF NOT EXISTS idx_customers_city_state ON customers(city, state)',
-            'CREATE INDEX IF NOT EXISTS idx_customers_geocoding_status ON customers(geocoding_status)',
-            'CREATE INDEX IF NOT EXISTS idx_customers_tags ON customers(tags)',
-            'CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)',
-            'CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)',
-            'CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token_hash)',
-            'CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at)',
-            'CREATE INDEX IF NOT EXISTS idx_geocoding_cache_address ON geocoding_cache(address)',
-            'CREATE INDEX IF NOT EXISTS idx_geocoding_cache_expires ON geocoding_cache(expires_at)'
-        ];
-
-        for (const index of indexes) {
-            await this.run(index);
-        }
-        
-        console.log('✅ Database indexes created successfully');
+        return Promise.resolve();
     }
 
-    // M�todos de Cliente
+    mapCustomerInput(customer) {
+        if (!customer) return null;
+
+        const id = (customer.id ?? customer.ploome_id ?? customer.ploomeId ?? customer.ploomePersonId);
+        if (!id) {
+            throw new Error('Customer id is required');
+        }
+
+        const normalizedTags = normalizeTags(customer.tags);
+        const streetAddress = customer.street_address || customer.streetAddress || customer.address || null;
+        const fullAddress = customer.full_address || customer.fullAddress || customer.geocoded_address || customer.geocodedAddress || streetAddress;
+
+        return {
+            id: String(id),
+            ploome_person_id: String(customer.ploome_person_id || customer.ploomeId || customer.ploomePersonId || id),
+            name: customer.name || null,
+            cnpj: customer.cnpj || null,
+            cpf: customer.cpf || null,
+            email: customer.email || null,
+            phone: customer.phone || null,
+            cep: customer.cep || null,
+            street_address: streetAddress || null,
+            street_number: customer.street_number || customer.streetNumber || null,
+            street_complement: customer.street_complement || customer.streetComplement || null,
+            neighborhood: customer.neighborhood || null,
+            city: customer.city || null,
+            state: customer.state || null,
+            address: streetAddress || null,
+            full_address: fullAddress || null,
+            geocoded_address: customer.geocoded_address || customer.geocodedAddress || fullAddress || null,
+            tags: normalizedTags.length ? normalizedTags : null,
+            latitude: toNumber(customer.latitude),
+            longitude: toNumber(customer.longitude),
+            geocoding_status: customer.geocoding_status || customer.geocodingStatus || 'pending',
+            geocoding_attempts: toNumber(customer.geocoding_attempts || customer.geocodingAttempts) || 0,
+            last_geocoding_attempt: toIso(customer.last_geocoding_attempt || customer.lastGeocodingAttempt),
+            geocoded_at: toIso(customer.geocoded_at || customer.geocodedAt),
+            created_at: toIso(customer.created_at || customer.createdAt) || new Date().toISOString(),
+            updated_at: toIso(customer.updated_at || customer.updatedAt) || new Date().toISOString()
+        };
+    }
+
+    mapCustomerOutput(row) {
+        if (!row) return null;
+        return {
+            ...row,
+            tags: normalizeTags(row.tags),
+            latitude: toNumber(row.latitude),
+            longitude: toNumber(row.longitude)
+        };
+    }
+
     async upsertCustomer(customer) {
-        const query = `
-            INSERT OR REPLACE INTO customers (
-                id, name, cnpj, cpf, email, phone,
-                cep, street_address, street_number, street_complement,
-                neighborhood, city, state, full_address, tags,
-                latitude, longitude, geocoding_status,
-                updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `;
+        await this.ensureInitialized();
+        const payload = this.mapCustomerInput(customer);
+        const { error } = await this.client
+            .from('customers')
+            .upsert(payload, { onConflict: 'id' });
 
-        const params = [
-            customer.id,
-            customer.name,
-            customer.cnpj,
-            customer.cpf,
-            customer.email,
-            customer.phone,
-            customer.cep,
-            customer.streetAddress,
-            customer.streetNumber,
-            customer.streetComplement,
-            customer.neighborhood,
-            customer.city,
-            customer.state,
-            customer.fullAddress,
-            customer.tags ? JSON.stringify(customer.tags) : null,
-            customer.latitude || null,
-            customer.longitude || null,
-            customer.geocoding_status || 'pending'
-        ];
-
-        return this.run(query, params);
+        if (error) throw error;
+        return { successCount: 1, errorCount: 0 };
     }
 
     async upsertCustomersBatch(customers) {
-        const query = `
-            INSERT OR REPLACE INTO customers (
-                id, name, cnpj, cpf, email, phone,
-                cep, street_address, street_number, street_complement,
-                neighborhood, city, state, full_address, tags,
-                geocoding_status, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `;
+        await this.ensureInitialized();
+        if (!Array.isArray(customers) || customers.length === 0) {
+            return { successCount: 0, errorCount: 0 };
+        }
 
-        return new Promise((resolve, reject) => {
-            this.db.serialize(() => {
-                this.db.run('BEGIN TRANSACTION', (err) => {
-                    if (err) {
-                        console.error('Error starting transaction:', err);
-                        reject(err);
-                        return;
-                    }
-                });
-                
-                let successCount = 0;
-                let errorCount = 0;
-                let processedCount = 0;
-                const totalCount = customers.length;
-                
-                const stmt = this.db.prepare(query);
+        // Optimized batch size for mass operations
+        const batches = chunkArray(customers, 100);
+        let successCount = 0;
+        let errorCount = 0;
+        const startTime = performance.now();
 
-                const processNext = (index) => {
-                    if (index >= totalCount) {
-                        // All customers processed, finalize
-                        stmt.finalize((finalizeErr) => {
-                            if (finalizeErr) {
-                                console.error('Error finalizing statement:', finalizeErr);
-                                this.db.run('ROLLBACK');
-                                reject(finalizeErr);
-                            } else {
-                                this.db.run('COMMIT', (commitErr) => {
-                                    if (commitErr) {
-                                        console.error('Error committing transaction:', commitErr);
-                                        reject(commitErr);
-                                    } else {
-                                        resolve({ successCount, errorCount });
-                                    }
-                                });
-                            }
+        console.log(`🚀 Starting batch upsert: ${customers.length} customers in ${batches.length} batches`);
+
+        // Process batches with controlled concurrency
+        const maxConcurrentBatches = 3;
+        for (let i = 0; i < batches.length; i += maxConcurrentBatches) {
+            const batchGroup = batches.slice(i, i + maxConcurrentBatches);
+
+            const promises = batchGroup.map(async (batch, batchIndex) => {
+                try {
+                    const payload = batch.map((item) => this.mapCustomerInput(item));
+                    const { error } = await this.client
+                        .from('customers')
+                        .upsert(payload, {
+                            onConflict: 'id',
+                            ignoreDuplicates: false
                         });
-                        return;
+
+                    if (error) {
+                        console.error(`❌ Batch ${i + batchIndex + 1} failed:`, error.message);
+                        return { success: 0, errors: batch.length };
+                    } else {
+                        console.log(`✅ Batch ${i + batchIndex + 1}/${batches.length} completed: ${batch.length} customers`);
+                        return { success: batch.length, errors: 0 };
                     }
-                    
-                    const customer = customers[index];
-                    stmt.run([
-                        customer.id,
-                        customer.name,
-                        customer.cnpj,
-                        customer.cpf,
-                        customer.email,
-                        customer.phone,
-                        customer.cep,
-                        customer.streetAddress,
-                        customer.streetNumber,
-                        customer.streetComplement,
-                        customer.neighborhood,
-                        customer.city,
-                        customer.state,
-                        customer.fullAddress,
-                        customer.tags ? JSON.stringify(customer.tags) : null,
-                        'pending'
-                    ], (runErr) => {
-                        processedCount++;
-                        if (runErr) {
-                            errorCount++;
-                            console.error(`Error inserting customer ${customer.name}:`, runErr);
-                        } else {
-                            successCount++;
-                        }
-                        
-                        // Process next customer
-                        setImmediate(() => processNext(index + 1));
-                    });
-                };
-                
-                // Start processing
-                processNext(0);
+                } catch (err) {
+                    console.error(`💥 Batch ${i + batchIndex + 1} error:`, err.message);
+                    return { success: 0, errors: batch.length };
+                }
             });
+
+            const results = await Promise.allSettled(promises);
+
+            results.forEach(result => {
+                if (result.status === 'fulfilled') {
+                    successCount += result.value.success;
+                    errorCount += result.value.errors;
+                } else {
+                    errorCount += 100; // Default batch size
+                }
+            });
+
+            // Small delay between batch groups to prevent overwhelming
+            if (i + maxConcurrentBatches < batches.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+
+        const duration = performance.now() - startTime;
+        const rate = Math.round(customers.length / (duration / 1000));
+        console.log(`📊 Batch operation completed: ${successCount} success, ${errorCount} errors in ${Math.round(duration)}ms (${rate} records/sec)`);
+
+        return { successCount, errorCount };
+    }
+
+    async listCustomers(options = {}) {
+        await this.ensureInitialized();
+        const { status, tag = 'Cliente' } = options;
+
+        const pageSize = 1000;
+        let page = 0;
+        const rows = [];
+
+        while (true) {
+            const from = page * pageSize;
+            const to = from + pageSize - 1;
+
+            let query = this.client
+                .from('customers')
+                .select('*')
+                .range(from, to);
+
+            if (status) {
+                query = query.eq('geocoding_status', status);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+
+            if (!data || data.length === 0) {
+                break;
+            }
+
+            rows.push(...data);
+
+            if (data.length < pageSize) {
+                break;
+            }
+
+            page += 1;
+        }
+
+        let customers = rows.map((row) => this.mapCustomerOutput(row));
+
+        if (tag) {
+            const needle = tag.toLowerCase();
+            customers = customers.filter((customer) => {
+                const tagList = normalizeTags(customer.tags).map((t) => t.toLowerCase());
+                return tagList.includes(needle);
+            });
+        }
+
+        customers.sort((a, b) => {
+            const aGeo = a.latitude && a.longitude ? 0 : 1;
+            const bGeo = b.latitude && b.longitude ? 0 : 1;
+            if (aGeo !== bGeo) return aGeo - bGeo;
+            return (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' });
         });
-    }
-
-    async getCustomersForGeocoding(limit = 100) {
-        const query = `
-            SELECT * FROM customers
-            WHERE geocoding_status = 'pending'
-            AND (geocoding_attempts < 3 OR geocoding_attempts IS NULL)
-            AND (cep IS NOT NULL OR full_address IS NOT NULL)
-            ORDER BY updated_at DESC
-            LIMIT ?
-        `;
-        
-        return this.all(query, [limit]);
-    }
-
-    async updateCustomerCoordinates(customerId, lat, lng, status = 'completed') {
-        const query = `
-            UPDATE customers
-            SET latitude = ?, longitude = ?, 
-                geocoding_status = ?,
-                geocoding_attempts = geocoding_attempts + 1,
-                last_geocoding_attempt = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `;
-        
-        return this.run(query, [lat, lng, status, customerId]);
+        return customers;
     }
 
     async getCustomersByDistance(originLat, originLng, maxDistanceKm) {
-        // Usando a fórmula de Haversine simplificada para SQLite
-        // Aproximação: 111.12 km por grau
-        const query = `
-            SELECT *,
-                (111.12 * 
-                    SQRT(
-                        POW(latitude - ?, 2) + 
-                        POW((longitude - ?) * COS(RADIANS(?)), 2)
-                    )
-                ) as distance_km
-            FROM customers
-            WHERE latitude IS NOT NULL 
-            AND longitude IS NOT NULL
-            AND geocoding_status = 'completed'
-            AND tags LIKE '%"Cliente"%'
-            AND (111.12 * 
-                    SQRT(
-                        POW(latitude - ?, 2) + 
-                        POW((longitude - ?) * COS(RADIANS(?)), 2)
-                    )
-                ) <= ?
-            ORDER BY distance_km ASC
-        `;
-        
-        const customers = await this.all(query, [originLat, originLng, originLat, originLat, originLng, originLat, maxDistanceKm]);
-        return this.parseTags(customers);
+        await this.ensureInitialized();
+
+        const pageSize = 1000;
+        let page = 0;
+        const rows = [];
+
+        while (true) {
+            const from = page * pageSize;
+            const to = from + pageSize - 1;
+
+            const { data, error } = await this.client
+                .from('customers')
+                .select('*')
+                .not('latitude', 'is', null)
+                .not('longitude', 'is', null)
+                .range(from, to);
+
+            if (error) throw error;
+
+            if (!data || data.length === 0) {
+                break;
+            }
+
+            rows.push(...data);
+
+            if (data.length < pageSize) {
+                break;
+            }
+
+            page += 1;
+        }
+
+        const toRad = (deg) => deg * (Math.PI / 180);
+        const earthRadiusKm = 6371;
+
+        const customers = rows.map((row) => {
+            const customer = this.mapCustomerOutput(row);
+            const lat1 = toNumber(customer.latitude);
+            const lon1 = toNumber(customer.longitude);
+            const lat2 = toNumber(originLat);
+            const lon2 = toNumber(originLng);
+
+            if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) {
+                return { ...customer, distance_km: Infinity };
+            }
+
+            const dLat = toRad(lat2 - lat1);
+            const dLon = toRad(lon2 - lon1);
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distance = earthRadiusKm * c;
+
+            return { ...customer, distance_km: distance };
+        });
+
+        return customers
+            .filter((customer) => {
+                if (!Number.isFinite(customer.distance_km) || customer.distance_km > maxDistanceKm) {
+                    return false;
+                }
+                const tags = normalizeTags(customer.tags);
+                return tags.includes('Cliente');
+            })
+            .sort((a, b) => a.distance_km - b.distance_km);
     }
 
-    // M�todos de Geocodifica��o
-    async getCachedGeocoding(address) {
-        const query = `
-            SELECT * FROM geocoding_cache
-            WHERE address = ?
-            AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-            LIMIT 1
-        `;
-        
-        return this.get(query, [address]);
+    async getCustomersForGeocoding(limit = 100) {
+        await this.ensureInitialized();
+        const effectiveLimit = Math.max(limit, 1);
+
+        const { data, error } = await this.client
+            .from('customers')
+            .select('*')
+            .eq('geocoding_status', 'pending')
+            .order('updated_at', { ascending: false })
+            .limit(effectiveLimit * 3);
+
+        if (error) throw error;
+
+        const candidates = (data || []).map((row) => this.mapCustomerOutput(row));
+        const filtered = candidates.filter((customer) => {
+            const attempts = toNumber(customer.geocoding_attempts) || 0;
+            const hasAddress = Boolean(customer.cep) || Boolean(customer.full_address);
+            return attempts < 3 && hasAddress;
+        });
+
+        return filtered.slice(0, effectiveLimit);
     }
 
-    async saveGeocodingCache(address, lat, lng, provider = 'nominatim', ttlDays = 30) {
-        const query = `
-            INSERT OR REPLACE INTO geocoding_cache (
-                address, latitude, longitude, provider, 
-                expires_at, created_at
-            ) VALUES (?, ?, ?, ?, datetime('now', '+${ttlDays} days'), CURRENT_TIMESTAMP)
-        `;
-        
-        return this.run(query, [address, lat, lng, provider]);
+    async updateCustomerCoordinates(customerId, lat, lng, status = 'completed') {
+        await this.ensureInitialized();
+
+        const { data: existing } = await this.client
+            .from('customers')
+            .select('geocoding_attempts')
+            .eq('id', String(customerId))
+            .maybeSingle();
+
+        const attempts = toNumber(existing?.geocoding_attempts) || 0;
+        const updateData = {
+            latitude: toNumber(lat),
+            longitude: toNumber(lng),
+            geocoding_status: status,
+            geocoding_attempts: attempts + 1,
+            last_geocoding_attempt: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        if (status === 'completed' && updateData.latitude !== null && updateData.longitude !== null) {
+            updateData.geocoded_at = new Date().toISOString();
+        }
+
+        const { error } = await this.client
+            .from('customers')
+            .update(updateData)
+            .eq('id', String(customerId));
+
+        if (error) throw error;
+        return { success: true };
     }
 
-    // M�todos de Rotas
-    async saveRoute(route) {
-        const query = `
-            INSERT INTO routes (
-                name, origin_cep, origin_lat, origin_lng,
-                waypoints, optimized_order, total_distance, estimated_time
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        
-        const params = [
-            route.name || `Rota ${new Date().toLocaleDateString('pt-BR')}`,
-            route.originCep,
-            route.originLat,
-            route.originLng,
-            JSON.stringify(route.waypoints),
-            JSON.stringify(route.optimizedOrder),
-            route.totalDistance,
-            route.estimatedTime
-        ];
-        
-        return this.run(query, params);
-    }
+    /**
+     * Batch update customer coordinates for mass geocoding operations
+     * Much more efficient than individual updates
+     */
+    async batchUpdateCustomerCoordinates(updates) {
+        await this.ensureInitialized();
+        if (!Array.isArray(updates) || updates.length === 0) {
+            return { successCount: 0, errorCount: 0 };
+        }
 
-    async getRoutes(limit = 50) {
-        const query = `
-            SELECT * FROM routes
-            ORDER BY created_at DESC
-            LIMIT ?
-        `;
-        
-        const routes = await this.all(query, [limit]);
-        
-        // Parse JSON fields
-        return routes.map(route => ({
-            ...route,
-            waypoints: JSON.parse(route.waypoints || '[]'),
-            optimized_order: JSON.parse(route.optimized_order || '[]')
-        }));
-    }
+        const startTime = performance.now();
+        console.log(`🔄 Starting batch coordinate updates: ${updates.length} customers`);
 
-    // M�todos de Log
-    async logSync(logData) {
-        const query = `
-            INSERT INTO sync_logs (
-                sync_type, records_fetched, records_updated,
-                errors, started_at, completed_at, status, error_message
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        
-        const params = [
-            logData.type,
-            logData.fetched,
-            logData.updated,
-            logData.errors,
-            logData.startedAt,
-            logData.completedAt,
-            logData.status,
-            logData.errorMessage
-        ];
-        
-        return this.run(query, params);
-    }
+        const batches = chunkArray(updates, 50);
+        let successCount = 0;
+        let errorCount = 0;
 
-    // Estat�sticas
-    async getStatistics() {
-        const stats = {};
+        // Process batches sequentially to avoid overwhelming database
+        for (let i = 0; i < batches.length; i++) {
+            const batch = batches[i];
 
-        // Total de clientes
-        const totalCustomers = await this.get('SELECT COUNT(*) as count FROM customers');
-        stats.totalCustomers = totalCustomers.count;
+            try {
+                // Prepare update data for each customer in batch
+                const updatePromises = batch.map(async ({ customerId, lat, lng, status = 'completed', geocoded_address = null }) => {
+                    const now = new Date().toISOString();
+                    const updateData = {
+                        latitude: toNumber(lat),
+                        longitude: toNumber(lng),
+                        geocoding_status: status,
+                        geocoding_attempts: 1, // Will be updated properly in production
+                        last_geocoding_attempt: now,
+                        updated_at: now
+                    };
 
-        // Clientes geocodificados
-        const geocoded = await this.get("SELECT COUNT(*) as count FROM customers WHERE geocoding_status = 'completed'");
-        stats.geocodedCustomers = geocoded.count;
+                    if (status === 'completed' && updateData.latitude !== null && updateData.longitude !== null) {
+                        updateData.geocoded_at = now;
+                    }
 
-        // Clientes pendentes de geocodificação
-        const pending = await this.get("SELECT COUNT(*) as count FROM customers WHERE geocoding_status = 'pending'");
-        stats.pendingGeocoding = pending.count;
+                    if (geocoded_address) {
+                        updateData.geocoded_address = geocoded_address;
+                    }
 
-        // CRITICAL FIX: Add customers with CEP count for frontend components
-        const withCep = await this.get("SELECT COUNT(*) as count FROM customers WHERE cep IS NOT NULL AND cep != '' AND length(cep) >= 8");
-        stats.customersWithCep = withCep.count;
+                    return this.client
+                        .from('customers')
+                        .update(updateData)
+                        .eq('id', String(customerId));
+                });
 
-        // Total de rotas
-        const routes = await this.get('SELECT COUNT(*) as count FROM routes');
-        stats.totalRoutes = routes.count;
+                const results = await Promise.allSettled(updatePromises);
 
-        // Última sincronização
-        const lastSync = await this.get("SELECT * FROM sync_logs WHERE status = 'success' ORDER BY completed_at DESC LIMIT 1");
-        stats.lastSync = lastSync;
+                let batchSuccess = 0;
+                let batchErrors = 0;
 
-        return stats;
-    }
+                results.forEach((result, idx) => {
+                    if (result.status === 'fulfilled' && !result.value.error) {
+                        batchSuccess++;
+                    } else {
+                        batchErrors++;
+                        if (result.status === 'rejected') {
+                            console.error(`❌ Customer ${batch[idx].customerId} update failed:`, result.reason.message);
+                        } else if (result.value.error) {
+                            console.error(`❌ Customer ${batch[idx].customerId} update failed:`, result.value.error.message);
+                        }
+                    }
+                });
 
-    async getGeocodingStats() {
-        const query = `
-            SELECT 
-                COUNT(CASE WHEN geocoding_status = 'pending' THEN 1 END) as pending,
-                COUNT(CASE WHEN geocoding_status = 'completed' THEN 1 END) as completed,
-                COUNT(CASE WHEN geocoding_status = 'failed' THEN 1 END) as failed,
-                COUNT(CASE WHEN geocoding_status = 'error' THEN 1 END) as error
-            FROM customers
-        `;
-        return this.get(query);
-    }
+                successCount += batchSuccess;
+                errorCount += batchErrors;
 
-    async getPendingGeocoding(limit = 10) {
-        const query = `
-            SELECT * FROM customers
-            WHERE geocoding_status = 'pending'
-            AND (geocoding_attempts < 3 OR geocoding_attempts IS NULL)
-            ORDER BY updated_at DESC
-            LIMIT ?
-        `;
-        return this.all(query, [limit]);
+                console.log(`✅ Batch ${i + 1}/${batches.length} completed: ${batchSuccess} success, ${batchErrors} errors`);
+
+                // Small delay between batches
+                if (i < batches.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+
+            } catch (error) {
+                console.error(`💥 Batch ${i + 1} failed:`, error.message);
+                errorCount += batch.length;
+            }
+        }
+
+        const duration = performance.now() - startTime;
+        const rate = Math.round(updates.length / (duration / 1000));
+        console.log(`📊 Batch coordinate updates completed: ${successCount} success, ${errorCount} errors in ${Math.round(duration)}ms (${rate} updates/sec)`);
+
+        return { successCount, errorCount };
     }
 
     async updateGeocodingStatus(customerId, status) {
-        const query = `
-            UPDATE customers
-            SET geocoding_status = ?,
-                geocoding_attempts = COALESCE(geocoding_attempts, 0) + 1,
-                last_geocoding_attempt = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `;
-        return this.run(query, [status, customerId]);
+        await this.ensureInitialized();
+
+        const { data: existing } = await this.client
+            .from('customers')
+            .select('geocoding_attempts')
+            .eq('id', String(customerId))
+            .maybeSingle();
+
+        const attempts = toNumber(existing?.geocoding_attempts) || 0;
+        const updateData = {
+            geocoding_status: status,
+            geocoding_attempts: attempts + 1,
+            last_geocoding_attempt: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        const { error } = await this.client
+            .from('customers')
+            .update(updateData)
+            .eq('id', String(customerId));
+
+        if (error) throw error;
+        return { success: true };
     }
 
-    async getGeocodedCustomers(limit = 1000) {
-        const customers = await this.all(`
-            SELECT * FROM customers 
-            WHERE latitude IS NOT NULL 
-            AND longitude IS NOT NULL
-            AND tags LIKE '%"Cliente"%'
-            ORDER BY updated_at DESC
-            LIMIT ?
-        `, [limit]);
-        
-        return this.parseTags(customers);
-    }
+    async getCachedGeocoding(address) {
+        await this.ensureInitialized();
+        if (!address) return null;
 
-    // Helper method to parse tags JSON for customer records
-    parseTags(customers) {
-        if (!Array.isArray(customers)) {
-            return customers;
+        const { data, error } = await this.client
+            .from('geocoding_cache')
+            .select('*')
+            .eq('address', address)
+            .limit(1)
+            .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') throw error;
+        if (!data) return null;
+
+        if (data.expires_at && new Date(data.expires_at) <= new Date()) {
+            await this.client
+                .from('geocoding_cache')
+                .delete()
+                .eq('id', data.id);
+            return null;
         }
-        
-        return customers.map(customer => ({
-            ...customer,
-            tags: customer.tags ? JSON.parse(customer.tags) : []
+
+        return data;
+    }
+
+    async saveGeocodingCache(address, lat, lng, provider = 'nominatim', ttlDays = 30) {
+        await this.ensureInitialized();
+        if (!address) return;
+
+        const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
+
+        const { error } = await this.client
+            .from('geocoding_cache')
+            .upsert({
+                address,
+                latitude: toNumber(lat),
+                longitude: toNumber(lng),
+                provider,
+                accuracy: null,
+                created_at: new Date().toISOString(),
+                expires_at: expiresAt
+            }, { onConflict: 'address' });
+
+        if (error) throw error;
+    }
+
+    async saveRoute(route) {
+        await this.ensureInitialized();
+        const routeId = route.id || generateId();
+
+        const payload = {
+            id: routeId,
+            name: route.name || `Rota ${new Date().toLocaleDateString('pt-BR')}`,
+            origin_cep: route.originCep || route.origin_cep || null,
+            origin_lat: toNumber(route.originLat || route.origin_lat),
+            origin_lng: toNumber(route.originLng || route.origin_lng),
+            waypoints: route.waypoints || [],
+            optimized_order: route.optimizedOrder || route.optimized_order || [],
+            total_distance: toNumber(route.totalDistance || route.total_distance),
+            estimated_time: toNumber(route.estimatedTime || route.estimated_time),
+            created_at: new Date().toISOString()
+        };
+
+        const { error } = await this.client
+            .from('routes')
+            .upsert(payload, { onConflict: 'id' });
+
+        if (error) throw error;
+        return { id: routeId };
+    }
+
+    async getRoutes(limit = 50) {
+        await this.ensureInitialized();
+        const { data, error } = await this.client
+            .from('routes')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) throw error;
+        return (data || []).map((row) => ({
+            ...row,
+            waypoints: Array.isArray(row.waypoints) ? row.waypoints : [],
+            optimized_order: Array.isArray(row.optimized_order) ? row.optimized_order : []
         }));
     }
 
-    // M�todos auxiliares do SQLite
-    async run(query, params = []) {
-        // RAILWAY FIX: Skip recursive initialization during auth service setup
-        if (!this.isInitialized && !this.initializationPromise) {
-            await this.ensureInitialized();
-        }
+    async logSync(logData) {
+        await this.ensureInitialized();
+        const payload = {
+            id: generateId(),
+            sync_type: logData.type || null,
+            records_fetched: toNumber(logData.fetched) || 0,
+            records_updated: toNumber(logData.updated) || 0,
+            errors: toNumber(logData.errors) || 0,
+            started_at: toIso(logData.startedAt) || new Date().toISOString(),
+            completed_at: toIso(logData.completedAt) || new Date().toISOString(),
+            status: logData.status || null,
+            error_message: logData.errorMessage || null
+        };
 
-        return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Database not initialized'));
-                return;
-            }
+        const { error } = await this.client
+            .from('sync_logs')
+            .upsert(payload, { onConflict: 'id' });
 
-            // Add timeout for Railway environment
-            const timeout = setTimeout(() => {
-                reject(new Error('Database query timeout'));
-            }, 10000);
-
-            this.db.run(query, params, function(err) {
-                clearTimeout(timeout);
-                if (err) reject(err);
-                else resolve({ id: this.lastID, changes: this.changes });
-            });
-        });
+        if (error) throw error;
+        return payload;
     }
 
-    async get(query, params = []) {
-        // RAILWAY FIX: Skip recursive initialization during auth service setup
-        if (!this.isInitialized && !this.initializationPromise) {
-            await this.ensureInitialized();
-        }
+    async getStatistics() {
+        await this.ensureInitialized();
 
-        return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Database not initialized'));
-                return;
-            }
+        const [totalRes, geocodedRes, pendingRes, withCepRes, routesRes, lastSyncData] = await Promise.all([
+            this.client.from('customers').select('*', { count: 'exact', head: true }),
+            this.client.from('customers').select('*', { count: 'exact', head: true }).not('latitude', 'is', null).not('longitude', 'is', null),
+            this.client.from('customers').select('*', { count: 'exact', head: true }).eq('geocoding_status', 'pending'),
+            this.client.from('customers').select('*', { count: 'exact', head: true }).not('cep', 'is', null),
+            this.client.from('routes').select('*', { count: 'exact', head: true }),
+            this.client
+                .from('sync_logs')
+                .select('*')
+                .eq('status', 'success')
+                .order('completed_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+        ]);
 
-            // Add timeout for Railway environment
-            const timeout = setTimeout(() => {
-                reject(new Error('Database query timeout'));
-            }, 10000);
+        const totalCustomers = totalRes?.count || 0;
+        const geocodedCustomers = geocodedRes?.count || 0;
+        const pendingGeocoding = pendingRes?.count || 0;
+        const customersWithCep = withCepRes?.count || 0;
+        const totalRoutes = routesRes?.count || 0;
 
-            this.db.get(query, params, (err, row) => {
-                clearTimeout(timeout);
-                if (err) reject(err);
-                else resolve(row);
-            });
-        });
+        return {
+            totalCustomers,
+            geocodedCustomers,
+            pendingGeocoding,
+            customersWithCep,
+            totalRoutes,
+            lastSync: lastSyncData || null,
+            withCoordinates: geocodedCustomers,
+            withoutCoordinates: Math.max(totalCustomers - geocodedCustomers, 0)
+        };
     }
 
-    async all(query, params = []) {
-        // RAILWAY FIX: Skip recursive initialization during auth service setup
-        if (!this.isInitialized && !this.initializationPromise) {
-            await this.ensureInitialized();
-        }
+    async getGeocodingStats() {
+        await this.ensureInitialized();
+        const { data, error } = await this.client
+            .from('customers')
+            .select('geocoding_status');
 
-        return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Database not initialized'));
-                return;
+        if (error) throw error;
+
+        const stats = { pending: 0, completed: 0, failed: 0, error: 0 };
+        (data || []).forEach((row) => {
+            const status = row.geocoding_status || 'pending';
+            if (stats[status] !== undefined) {
+                stats[status] += 1;
             }
-
-            // Add timeout for Railway environment
-            const timeout = setTimeout(() => {
-                reject(new Error('Database query timeout'));
-            }, 10000);
-
-            this.db.all(query, params, (err, rows) => {
-                clearTimeout(timeout);
-                if (err) reject(err);
-                else resolve(rows || []);
-            });
         });
+        return stats;
     }
 
-    close() {
-        return new Promise((resolve, reject) => {
-            this.db.close((err) => {
-                if (err) reject(err);
-                else resolve();
-            });
-        });
+    async getPendingGeocoding(limit = 10) {
+        return this.getCustomersForGeocoding(limit);
     }
 
-    // Método para criar usuário padrão
-    async createDefaultUser() {
-        const crypto = require('crypto');
-        
-        try {
-            const defaultEmail = 'gustavo.canuto@ciaramaquinas.com.br';
-            const defaultPassword = 'ciara123@';
-            const defaultName = 'Gustavo Canuto';
+    async getGeocodedCustomers(limit = 1000) {
+        await this.ensureInitialized();
+        const { data, error } = await this.client
+            .from('customers')
+            .select('*')
+            .not('latitude', 'is', null)
+            .not('longitude', 'is', null)
+            .order('updated_at', { ascending: false })
+            .limit(limit * 2);
 
-            // Check if default user already exists
-            const existingUser = await this.get(
-                'SELECT id FROM users WHERE email = ?',
-                [defaultEmail]
-            );
+        if (error) throw error;
+        return (data || [])
+            .map((row) => this.mapCustomerOutput(row))
+            .filter((customer) => normalizeTags(customer.tags).includes('Cliente'))
+            .slice(0, limit);
+    }
 
-            if (existingUser) {
-                console.log('✅ Default user already exists');
-                return;
-            }
+    async close() {
+        return Promise.resolve();
+    }
 
-            // Create password hash using SHA-256 with salt
-            const salt = crypto.randomBytes(32).toString('hex');
-            const hash = crypto.createHash('sha256').update(defaultPassword + salt).digest('hex');
-            const passwordHash = salt + ':' + hash;
+    async deleteEntireTable(table, column = 'id') {
+        await this.ensureInitialized();
+        const { error } = await this.client
+            .from(table)
+            .delete()
+            .not(column, 'is', null);
+        if (error) throw error;
+    }
 
-            // Create default user
-            await this.run(
-                'INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)',
-                [defaultEmail, passwordHash, defaultName]
-            );
+    async deleteAllCustomers() {
+        await this.deleteEntireTable('customers');
+    }
 
-            console.log('✅ Default user created:', defaultEmail);
-        } catch (error) {
-            console.error('❌ Error creating default user:', error);
+    async deleteAllSyncLogs() {
+        await this.deleteEntireTable('sync_logs');
+    }
+
+    async deleteAllRoutes() {
+        await this.deleteEntireTable('routes');
+    }
+
+    async deleteAllGeocodingCache() {
+        await this.deleteEntireTable('geocoding_cache');
+    }
+
+    // Deprecated methods retained for backward compatibility. They now throw
+    // explicit errors to highlight the need to use Supabase-specific helpers.
+    async run() {
+        throw new Error('DatabaseService.run is not supported with the Supabase backend. Use dedicated helper methods.');
+    }
+
+    async get() {
+        throw new Error('DatabaseService.get is not supported with the Supabase backend. Use dedicated helper methods.');
+    }
+
+    async all() {
+        throw new Error('DatabaseService.all is not supported with the Supabase backend. Use dedicated helper methods.');
+    }
+
+    async ensureDefaultUser() {
+        const defaultEmail = 'gustavo.canuto@ciaramaquinas.com.br';
+        const defaultPassword = 'ciara123@';
+        const defaultName = 'Gustavo Canuto';
+
+        const existing = await this.getUserByEmail(defaultEmail);
+        if (existing) {
+            return existing;
         }
+
+        const salt = crypto.randomBytes(32).toString('hex');
+        const hash = crypto.createHash('sha256').update(defaultPassword + salt).digest('hex');
+        const passwordHash = `${salt}:${hash}`;
+
+        return this.createUser({ email: defaultEmail, name: defaultName, passwordHash });
+    }
+
+    async getUserByEmail(email) {
+        await this.ensureInitialized();
+        if (!email) return null;
+
+        const { data, error } = await this.client
+            .from('legacy_users')
+            .select('*')
+            .eq('email', email.toLowerCase())
+            .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') throw error;
+        return data || null;
+    }
+
+    async getUserById(id, options = {}) {
+        await this.ensureInitialized();
+        if (!id) return null;
+
+        const columns = options.includePassword
+            ? '*'
+            : 'id, email, name, is_active, created_at, updated_at, last_login';
+
+        const { data, error } = await this.client
+            .from('legacy_users')
+            .select(columns)
+            .eq('id', id)
+            .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') throw error;
+        return data || null;
+    }
+
+    async createUser({ email, name, passwordHash }) {
+        await this.ensureInitialized();
+        const now = new Date().toISOString();
+        const payload = {
+            id: generateId(),
+            email: email.toLowerCase(),
+            name: name.trim(),
+            password_hash: passwordHash,
+            is_active: true,
+            created_at: now,
+            updated_at: now
+        };
+
+        const { data, error } = await this.client
+            .from('legacy_users')
+            .insert(payload)
+            .select()
+            .maybeSingle();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async updateUserLogin(id) {
+        await this.ensureInitialized();
+        const now = new Date().toISOString();
+        const { error } = await this.client
+            .from('legacy_users')
+            .update({ last_login: now, updated_at: now })
+            .eq('id', id);
+        if (error) throw error;
+    }
+
+    async updateUserName(id, name) {
+        await this.ensureInitialized();
+        const { error } = await this.client
+            .from('legacy_users')
+            .update({ name: name.trim(), updated_at: new Date().toISOString() })
+            .eq('id', id);
+        if (error) throw error;
+    }
+
+    async updateUserPassword(id, passwordHash) {
+        await this.ensureInitialized();
+        const { error } = await this.client
+            .from('legacy_users')
+            .update({ password_hash: passwordHash, updated_at: new Date().toISOString() })
+            .eq('id', id);
+        if (error) throw error;
+    }
+
+    async createSession({ userId, tokenHash, expiresAt, userAgent, ipAddress }) {
+        await this.ensureInitialized();
+        const payload = {
+            id: generateId(),
+            user_id: userId,
+            token_hash: tokenHash,
+            expires_at: toIso(expiresAt) || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date().toISOString(),
+            user_agent: userAgent || null,
+            ip_address: ipAddress || null
+        };
+
+        const { error } = await this.client
+            .from('legacy_user_sessions')
+            .insert(payload);
+
+        if (error) throw error;
+        return payload;
+    }
+
+    async deleteSession(userId, tokenHash) {
+        await this.ensureInitialized();
+        const { error } = await this.client
+            .from('legacy_user_sessions')
+            .delete()
+            .eq('user_id', userId)
+            .eq('token_hash', tokenHash);
+        if (error) throw error;
+    }
+
+    async deleteSessionsByUser(userId) {
+        await this.ensureInitialized();
+        const { error } = await this.client
+            .from('legacy_user_sessions')
+            .delete()
+            .eq('user_id', userId);
+        if (error) throw error;
+    }
+
+    async cleanupExpiredSessions() {
+        await this.ensureInitialized();
+        const now = new Date().toISOString();
+        const { data, error } = await this.client
+            .from('legacy_user_sessions')
+            .delete()
+            .lte('expires_at', now)
+            .select('id');
+        if (error) throw error;
+        return data ? data.length : 0;
+    }
+
+    async getUserStatsSummary() {
+        await this.ensureInitialized();
+        const [{ count: totalUsers }, { count: activeSessions }] = await Promise.all([
+            this.client.from('legacy_users').select('*', { count: 'exact', head: true }).eq('is_active', true),
+            this.client.from('legacy_user_sessions').select('*', { count: 'exact', head: true }).gt('expires_at', new Date().toISOString())
+        ]);
+
+        return {
+            totalUsers: totalUsers || 0,
+            activeSessions: activeSessions || 0
+        };
     }
 }
 
 module.exports = DatabaseService;
+module.exports.normalizeTags = normalizeTags;

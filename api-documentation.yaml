@@ -1,0 +1,723 @@
+openapi: 3.0.3
+info:
+  title: PLOMES Route Optimizer API
+  description: |
+    API for the PLOMES Route Optimization system that integrates with Ploome CRM
+    to manage customers, geocoding, and route optimization for Ciara Máquinas.
+
+    ## Features
+    - JWT-based authentication
+    - Customer data synchronization with Ploome CRM
+    - Real-time geocoding services
+    - Route optimization algorithms
+    - Statistics and analytics dashboard
+
+    ## Database
+    - **Backend**: Supabase PostgreSQL (persistent storage)
+    - **Current Data**: 2,246+ active customers with geocoding
+    - **Integration**: Live Ploome CRM synchronization
+
+  version: 1.0.0
+  contact:
+    name: PLOMES Route Optimizer
+    email: gustavo.canuto@ciaramaquinas.com.br
+  license:
+    name: Private
+servers:
+  - url: http://localhost:3001
+    description: Development server
+  - url: https://plomes-route-optimizer.vercel.app
+    description: Production server (if deployed)
+
+security:
+  - BearerAuth: []
+
+paths:
+  # Health & Status Endpoints
+  /api/health:
+    get:
+      summary: System Health Check
+      description: Returns system health status and service availability
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  uptime:
+                    type: number
+                    description: Server uptime in seconds
+                  environment:
+                    type: string
+                    example: "development"
+                  services:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        example: "connected"
+                      ploome:
+                        type: string
+                        example: "initialized"
+                      auth:
+                        type: string
+                        example: "initialized"
+
+  /api/test-connection:
+    get:
+      summary: Test Ploome API Connection
+      description: Tests the connection to Ploome CRM and returns account information
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Ploome connection successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Ploome API connection successful"
+                  accountInfo:
+                    type: object
+                    description: Ploome account details
+                  apiUrl:
+                    type: string
+                    example: "https://public-api2.ploomes.com"
+
+  # Authentication Endpoints
+  /api/auth/login:
+    post:
+      summary: User Login
+      description: Authenticate user and receive JWT token
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "gustavo.canuto@ciaramaquinas.com.br"
+                password:
+                  type: string
+                  example: "ciara123@"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Login successful"
+                  token:
+                    type: string
+                    description: JWT authentication token
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/verify:
+    get:
+      summary: Verify Token
+      description: Verify if JWT token is valid and return user information
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Token is valid"
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/profile:
+    get:
+      summary: Get User Profile
+      description: Get current user profile information
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  # Customer Management Endpoints
+  /api/customers:
+    get:
+      summary: Get Customers
+      description: |
+        Retrieve customer list with optional filtering and pagination.
+        Returns all customers from Supabase database with geocoding information.
+      tags:
+        - Customers
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of customers to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            example: 50
+        - name: city
+          in: query
+          description: Filter customers by city name
+          required: false
+          schema:
+            type: string
+            example: "FORTALEZA"
+        - name: offset
+          in: query
+          description: Number of customers to skip (pagination)
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            example: 0
+      responses:
+        '200':
+          description: Customer list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    description: Total number of customers
+                    example: 2246
+                  customers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+
+  /api/sync/customers:
+    post:
+      summary: Sync Customers from Ploome
+      description: |
+        Synchronize customer data from Ploome CRM to local Supabase database.
+        This operation fetches all customers with "Cliente" tag and updates local records.
+      tags:
+        - Customers
+      responses:
+        '200':
+          description: Customer sync completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Synced 2244 customers in 37.48s"
+                  details:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        example: "customer_sync"
+                      startedAt:
+                        type: string
+                        format: date-time
+                      fetched:
+                        type: integer
+                        example: 2244
+                      updated:
+                        type: integer
+                        example: 2244
+                      errors:
+                        type: integer
+                        example: 0
+                      completedAt:
+                        type: string
+                        format: date-time
+                      status:
+                        type: string
+                        example: "success"
+
+  # Statistics Endpoints
+  /api/statistics:
+    get:
+      summary: Get System Statistics
+      description: |
+        Get comprehensive statistics about customers, geocoding status,
+        synchronization status, and route optimization data.
+      tags:
+        - Statistics
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  statistics:
+                    type: object
+                    properties:
+                      totalCustomers:
+                        type: integer
+                        description: Total number of customers in database
+                        example: 2246
+                      geocodedCustomers:
+                        type: integer
+                        description: Number of customers with coordinates
+                        example: 2177
+                      pendingGeocoding:
+                        type: integer
+                        description: Customers waiting for geocoding
+                        example: 10
+                      customersWithCep:
+                        type: integer
+                        description: Customers with postal codes
+                        example: 2236
+                      totalRoutes:
+                        type: integer
+                        description: Total number of optimized routes
+                        example: 32
+                      withCoordinates:
+                        type: integer
+                        example: 2177
+                      withoutCoordinates:
+                        type: integer
+                        example: 69
+                      lastSync:
+                        type: object
+                        description: Information about the last synchronization
+                        properties:
+                          data:
+                            $ref: '#/components/schemas/SyncLog'
+
+  # Geocoding Endpoints
+  /api/geocode/address:
+    post:
+      summary: Geocode Single Address
+      description: |
+        Geocode a single address using available geocoding providers.
+        This is a public endpoint that doesn't require authentication.
+      tags:
+        - Geocoding
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - address
+              properties:
+                address:
+                  type: string
+                  description: Address to geocode
+                  example: "Rua das Flores, 123, São Paulo, SP"
+      responses:
+        '200':
+          description: Address geocoded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  coordinates:
+                    type: object
+                    properties:
+                      latitude:
+                        type: number
+                        example: -23.5505
+                      longitude:
+                        type: number
+                        example: -46.6333
+                  provider:
+                    type: string
+                    example: "googlemaps"
+        '400':
+          description: Could not geocode address
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    example: "Could not geocode address"
+
+  /api/geocode/batch:
+    post:
+      summary: Batch Geocode Multiple Addresses
+      description: Geocode multiple addresses in batch operation
+      tags:
+        - Geocoding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                addresses:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Address 1", "Address 2", "Address 3"]
+      responses:
+        '200':
+          description: Batch geocoding completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  results:
+                    type: array
+                    items:
+                      type: object
+
+  # Route Optimization Endpoints
+  /api/routes/optimize:
+    post:
+      summary: Optimize Route
+      description: |
+        Optimize route for given customer locations using OpenRouteService.
+        Requires origin point and waypoints (customer coordinates).
+      tags:
+        - Route Optimization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - customerIds
+                - startLocation
+              properties:
+                customerIds:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of customer IDs to include in route
+                  example: ["401245927", "401245923", "401763194"]
+                startLocation:
+                  type: object
+                  required:
+                    - latitude
+                    - longitude
+                  properties:
+                    latitude:
+                      type: number
+                      example: -3.7319
+                    longitude:
+                      type: number
+                      example: -38.5267
+      responses:
+        '200':
+          description: Route optimized successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  route:
+                    type: object
+                    description: Optimized route information
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    example: "Origin and waypoints required"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        email:
+          type: string
+          format: email
+          example: "gustavo.canuto@ciaramaquinas.com.br"
+        name:
+          type: string
+          example: "Gustavo Canuto"
+        lastLogin:
+          type: string
+          format: date-time
+          example: "2025-09-24T23:15:41.638+00:00"
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique customer ID from Ploome
+          example: "401246333"
+        ploome_person_id:
+          type: string
+          description: Original Ploome person ID
+          example: "401246333"
+        name:
+          type: string
+          description: Customer company name
+          example: "METALFLEX INDUSTRIA E COMERCIO DE ALUMINIO"
+        email:
+          type: string
+          description: Customer email addresses (comma-separated)
+          example: "metalflex@hotmail.com,compras@aluvid.com.br"
+        phone:
+          type: string
+          nullable: true
+          description: Customer phone number
+        address:
+          type: string
+          description: Street address
+          example: "AVENIDA DA RECUPERACAO, SN"
+        cep:
+          type: string
+          description: Brazilian postal code
+          example: "52291-630"
+        city:
+          type: string
+          description: City name
+          example: "RECIFE"
+        state:
+          type: string
+          nullable: true
+          description: State name
+        latitude:
+          type: number
+          nullable: true
+          description: Geocoded latitude coordinate
+          example: -8.0476
+        longitude:
+          type: number
+          nullable: true
+          description: Geocoded longitude coordinate
+          example: -34.877
+        geocoding_status:
+          type: string
+          description: Status of geocoding process
+          enum: [pending, processing, completed, failed]
+          example: "completed"
+        geocoded_address:
+          type: string
+          nullable: true
+          description: Address returned by geocoding service
+        cnpj:
+          type: string
+          nullable: true
+          description: Brazilian company registration number
+          example: "08697875000104"
+        cpf:
+          type: string
+          nullable: true
+          description: Brazilian individual registration number
+        street_address:
+          type: string
+          description: Parsed street address
+        street_number:
+          type: string
+          description: Parsed street number
+        street_complement:
+          type: string
+          nullable: true
+          description: Address complement
+        neighborhood:
+          type: string
+          description: Neighborhood name
+        full_address:
+          type: string
+          description: Complete formatted address
+          example: "AVENIDA DA RECUPERACAO, SN, BREJO DA GUABIRABA, RECIFE, 52291-630, Brasil"
+        tags:
+          type: array
+          items:
+            type: string
+          description: Customer tags from Ploome
+          example: ["Cliente"]
+        geocoding_attempts:
+          type: integer
+          description: Number of geocoding attempts made
+          example: 0
+        last_geocoding_attempt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of last geocoding attempt
+        geocoded_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when successfully geocoded
+          example: "2025-09-24T18:49:35+00:00"
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+          example: "2025-09-24T11:36:59+00:00"
+        updated_at:
+          type: string
+          format: date-time
+          description: Record last update timestamp
+          example: "2025-09-24T11:36:59+00:00"
+
+    SyncLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 4
+        sync_type:
+          type: string
+          example: "customer_sync"
+        records_fetched:
+          type: integer
+          example: 2243
+        records_updated:
+          type: integer
+          example: 2243
+        errors:
+          type: integer
+          example: 0
+        started_at:
+          type: string
+          format: date-time
+          example: "2025-09-24T11:36:24.175+00:00"
+        completed_at:
+          type: string
+          format: date-time
+          example: "2025-09-24T11:36:59.561+00:00"
+        status:
+          type: string
+          enum: [success, failed, in_progress]
+          example: "success"
+        error_message:
+          type: string
+          nullable: true
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+        message:
+          type: string
+          description: Detailed error message
+
+tags:
+  - name: Health
+    description: System health and connectivity endpoints
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Customers
+    description: Customer data management and synchronization
+  - name: Statistics
+    description: System statistics and analytics
+  - name: Geocoding
+    description: Address geocoding services
+  - name: Route Optimization
+    description: Route planning and optimization

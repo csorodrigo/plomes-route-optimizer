@@ -182,10 +182,7 @@ class AuthRoutes {
                     }
                     
                     // Update user name in database
-                    await this.authService.db.run(
-                        'UPDATE users SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                        [name.trim(), req.user.id]
-                    );
+                    await this.authService.updateUserProfile(req.user.id, { name: name.trim() });
                     
                     console.log(`✅ Profile updated for user: ${req.user.email}`);
                     
@@ -231,10 +228,7 @@ class AuthRoutes {
                     }
                     
                     // Get current user with password hash
-                    const user = await this.authService.db.get(
-                        'SELECT * FROM users WHERE id = ?',
-                        [req.user.id]
-                    );
+                    const user = await this.authService.getUserById(req.user.id, true);
                     
                     // Verify current password
                     const validPassword = await this.authService.verifyPassword(currentPassword, user.password_hash);
@@ -249,16 +243,7 @@ class AuthRoutes {
                     const newPasswordHash = await this.authService.hashPassword(newPassword);
                     
                     // Update password in database
-                    await this.authService.db.run(
-                        'UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                        [newPasswordHash, req.user.id]
-                    );
-                    
-                    // Invalidate all existing sessions for security
-                    await this.authService.db.run(
-                        'DELETE FROM user_sessions WHERE user_id = ?',
-                        [req.user.id]
-                    );
+                    await this.authService.changePassword(req.user.id, newPasswordHash);
                     
                     console.log(`✅ Password changed for user: ${req.user.email}`);
                     

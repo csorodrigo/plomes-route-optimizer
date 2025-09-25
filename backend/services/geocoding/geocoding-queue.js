@@ -1,15 +1,18 @@
 /**
  * Geocoding Queue Service - Manages batch geocoding operations
  * Handles background processing of customer addresses with progress tracking
+ * Includes performance monitoring and memory management
  */
 
 const EventEmitter = require('events');
+const PerformanceMonitor = require('../performance/performance-monitor');
 
 class GeocodingQueue extends EventEmitter {
     constructor(geocodingService, database) {
         super();
         this.geocodingService = geocodingService;
         this.db = database;
+        this.performanceMonitor = new PerformanceMonitor();
         this.processing = false;
         this.progress = {
             total: 0,
@@ -23,7 +26,8 @@ class GeocodingQueue extends EventEmitter {
         };
         this.queue = [];
         this.currentBatch = null;
-        this.batchSize = 10; // Process in small batches to avoid overwhelming APIs
+        this.batchSize = 25; // Optimized batch size for geocoding APIs
+        this.maxConcurrency = 3; // Maximum concurrent geocoding requests
     }
 
     /**
@@ -40,6 +44,15 @@ class GeocodingQueue extends EventEmitter {
             this.processing = true;
             this.progress.startTime = new Date();
             this.progress.endTime = null;
+
+            // Start performance monitoring
+            this.performanceMonitor.startMonitoring(3000); // Monitor every 3 seconds
+            this.performanceMonitor.on('alert', (alert) => {
+                console.log(`⚠️  Performance Alert [${alert.level}]: ${alert.message}`);
+                if (alert.suggestion) {
+                    console.log(`💡 Suggestion: ${alert.suggestion}`);
+                }
+            });
 
             // Get all customers that need geocoding
             const customers = await this.getCustomersNeedingGeocoding();
@@ -85,10 +98,25 @@ class GeocodingQueue extends EventEmitter {
             this.progress.endTime = new Date();
             this.processing = false;
 
+            // Stop performance monitoring
+            this.performanceMonitor.stopMonitoring();
+
             const duration = Math.round((this.progress.endTime - this.progress.startTime) / 1000);
             console.log(`✅ Geocoding completed! Processed ${this.progress.successful} successfully, ${this.progress.errors} errors in ${duration}s`);
 
-            this.emit('completed', this.progress);
+            // Log performance summary
+            const perfSummary = this.performanceMonitor.getPerformanceSummary();
+            console.log('📊 Performance Summary:', JSON.stringify(perfSummary, null, 2));
+
+            // Force garbage collection if memory usage is high
+            if (perfSummary.summary.maxMemoryUsage > '400MB') {
+                this.performanceMonitor.forceGarbageCollection();
+            }
+
+            this.emit('completed', {
+                ...this.progress,
+                performance: perfSummary
+            });
 
         } catch (error) {
             console.error('❌ Error in geocoding queue:', error);
@@ -99,38 +127,98 @@ class GeocodingQueue extends EventEmitter {
     }
 
     /**
-     * Process a batch of customers
+     * Process a batch of customers with controlled concurrency
      */
     async processBatch(customers) {
-        const promises = customers.map(customer => this.processCustomer(customer));
-        await Promise.allSettled(promises);
+        const updates = [];
+
+        // Process with controlled concurrency to prevent overwhelming APIs
+        for (let i = 0; i < customers.length; i += this.maxConcurrency) {
+            const batch = customers.slice(i, i + this.maxConcurrency);
+            const promises = batch.map(customer => this.processCustomer(customer));
+            const results = await Promise.allSettled(promises);
+
+            // Collect successful updates for batch database update
+            results.forEach((result, idx) => {
+                if (result.status === 'fulfilled' && result.value) {
+                    updates.push(result.value);
+                }
+            });
+
+            // Small delay between concurrent batches
+            if (i + this.maxConcurrency < customers.length) {
+                await this.delay(200);
+            }
+        }
+
+        // Batch update database with all successful geocoding results
+        if (updates.length > 0) {
+            try {
+                const dbStartTime = performance.now();
+                await this.db.batchUpdateCustomerCoordinates(updates);
+                this.performanceMonitor.trackDatabaseOperation(dbStartTime, 'batch');
+                console.log(`📊 Batch database update completed: ${updates.length} customers`);
+            } catch (error) {
+                console.error('❌ Batch database update failed:', error.message);
+            }
+        }
     }
 
     /**
-     * Process a single customer's geocoding
+     * Process a single customer's geocoding - returns update data for batch operation
      */
     async processCustomer(customer) {
+        const geocodingStartTime = performance.now();
+
         try {
-            if (!customer.address || !customer.cep) {
+            if (!customer.address && !customer.cep && !customer.full_address) {
                 console.log(`⚠️  Customer ${customer.id} missing address or CEP`);
                 this.progress.errors++;
-                return;
+                return null;
             }
 
             // Try to geocode the customer's address
             const result = await this.geocodingService.geocodeCustomer(customer);
+            const geocodingDuration = this.performanceMonitor.trackGeocodingOperation(geocodingStartTime, !!result);
 
             if (result && result.latitude && result.longitude) {
                 this.progress.successful++;
                 console.log(`✅ Geocoded customer ${customer.id}: ${customer.name}`);
+
+                // Return update data for batch database operation
+                return {
+                    customerId: customer.id,
+                    lat: result.latitude,
+                    lng: result.longitude,
+                    status: 'completed',
+                    geocoded_address: result.geocoded_address || result.address
+                };
             } else {
                 this.progress.errors++;
                 console.log(`❌ Failed to geocode customer ${customer.id}: ${customer.name}`);
+
+                // Return failed status update
+                return {
+                    customerId: customer.id,
+                    lat: null,
+                    lng: null,
+                    status: 'failed',
+                    geocoded_address: null
+                };
             }
 
         } catch (error) {
             this.progress.errors++;
             console.error(`❌ Error geocoding customer ${customer.id}:`, error.message);
+
+            // Return error status update
+            return {
+                customerId: customer.id,
+                lat: null,
+                lng: null,
+                status: 'error',
+                geocoded_address: null
+            };
         }
     }
 
@@ -139,29 +227,8 @@ class GeocodingQueue extends EventEmitter {
      */
     async getCustomersNeedingGeocoding() {
         try {
-            const query = `
-                SELECT
-                    id,
-                    name,
-                    address,
-                    neighborhood,
-                    city,
-                    state,
-                    cep,
-                    latitude,
-                    longitude
-                FROM customers
-                WHERE (latitude IS NULL OR longitude IS NULL OR latitude = 0 OR longitude = 0)
-                AND address IS NOT NULL
-                AND address != ''
-                AND cep IS NOT NULL
-                AND cep != ''
-                ORDER BY id
-            `;
-
-            const result = await this.db.query(query);
-            return result.rows || [];
-
+            const customers = await this.db.getCustomersForGeocoding(500);
+            return customers;
         } catch (error) {
             console.error('Error getting customers needing geocoding:', error);
             return [];

@@ -5,7 +5,6 @@ const path = require('path');
 
 console.log('1. Starting server initialization...');
 console.log('   PORT:', process.env.PORT);
-console.log('   DATABASE_PATH:', process.env.DATABASE_PATH);
 
 // Services
 const DatabaseService = require('./backend/services/sync/database-service');
@@ -33,7 +32,7 @@ async function initializeServices() {
         // Database
         console.log('3. Initializing database...');
         db = new DatabaseService();
-        await db.initialize();
+        await db.ensureInitialized();
         console.log('✅ Database initialized');
 
         // Ploome Service

@@ -45,7 +45,9 @@ const GeocodingManager = ({ onGeocodingComplete }) => {
       const response = await api.getStatistics();
       console.log('GeocodingManager - statistics response:', response);
 
-      const stats = response.statistics || response;
+      // Extract the statistics from nested response structure
+      const stats = response.data?.statistics || response.statistics || response.data || response;
+      console.log('GeocodingManager - extracted stats:', stats);
 
       // Calculate geocoding progress from statistics
       const progressData = {

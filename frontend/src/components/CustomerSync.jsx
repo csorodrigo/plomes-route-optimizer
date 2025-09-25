@@ -64,8 +64,9 @@ const CustomerSync = ({ onSyncComplete }) => {
       const response = await api.getPloomeStatus();
       console.log('CustomerSync - loadSyncStatus response:', response);
 
-      // Handle the API response format: { success: true, statistics: {...} }
-      const stats = response.statistics || response;
+      // Extract the statistics from nested response structure
+      const stats = response.data?.statistics || response.statistics || response.data || response;
+      console.log('CustomerSync - extracted stats:', stats);
 
       if (stats.lastSync) {
         setLastSync(stats.lastSync);
@@ -89,19 +90,25 @@ const CustomerSync = ({ onSyncComplete }) => {
   const testPloomeConnection = useCallback(async () => {
     setTestingConnection(true);
     try {
-      const result = await api.testPloomeConnection();
+      const response = await api.testPloomeConnection();
+      console.log('Connection test response:', response);
+
+      // Extract the actual result from response.data
+      const result = response.data || response;
       setConnectionTest(result);
-      
+
       if (result.success) {
         toast.success('Conexão com Ploomes estabelecida com sucesso');
       } else {
         toast.warning('Problema na conexão com Ploomes');
       }
     } catch (error) {
-      setConnectionTest({
+      console.error('Connection test error:', error);
+      const errorResult = {
         success: false,
         error: error.message
-      });
+      };
+      setConnectionTest(errorResult);
       toast.error('Erro ao testar conexão: ' + error.message);
     } finally {
       setTestingConnection(false);

@@ -14,20 +14,42 @@ if (!process.env.SUPABASE_ANON_KEY) {
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
-// Cliente principal (para uso geral)
+// Cliente principal (para uso geral) - Optimized for performance
 const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
         persistSession: false, // Desabilitado para uso server-side
         autoRefreshToken: false
+    },
+    global: {
+        headers: {
+            'connection': 'keep-alive'
+        }
+    },
+    db: {
+        schema: 'public'
+    },
+    realtime: {
+        params: {
+            eventsPerSecond: 10
+        }
     }
 });
 
-// Cliente com Service Role (para operações administrativas)
+// Cliente com Service Role (para operações administrativas) - Optimized for bulk operations
 const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
     ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY, {
         auth: {
             persistSession: false,
             autoRefreshToken: false
+        },
+        global: {
+            headers: {
+                'connection': 'keep-alive',
+                'prefer': 'return=minimal'
+            }
+        },
+        db: {
+            schema: 'public'
         }
     })
     : supabase;

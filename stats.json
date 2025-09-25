@@ -1,0 +1,3 @@
+{"success":true,"statistics":{"totalCustomers":2247,"geocodedCustomers":951,"pendingGeocoding":1244,"customersWithCep":2237,"totalRoutes":32,"lastSync":{"error":null,"data":{"id":1758755840382814,"sync_type":"customer_sync","records_fetched":2244,"records_updated":2244,"errors":0,"started_at":"2025-09-24T23:16:42.99+00:00","completed_at":"2025-09-24T23:17:20.382+00:00","status":"success","error_message":null},"count":null,"status":200,"statusText":"OK"},"withCoordinates":951,"withoutCoordinates":1296}}
+Status: 200
+Time: 0.864630s

@@ -621,8 +621,9 @@ const RouteOptimizer = () => {
     setLoading(true);
     try {
       const response = await api.getCustomers();
-      
-      const customerList = response.customers || response;
+      console.log('RouteOptimizer - API response:', response);
+
+      const customerList = response.data?.customers || response.customers || response.data || response;
       
       // Filtrar clientes - mostrar todos que tenham coordenadas válidas no Brasil
       const geocoded = customerList.filter(c => 
@@ -674,8 +675,8 @@ const RouteOptimizer = () => {
 
       console.log('🔍 CEP API Response:', response);
 
-      if (response.success && response.coordinates) {
-        const { lat, lng } = response.coordinates;
+      if (response.success && (response.lat !== undefined && response.lng !== undefined)) {
+        const { lat, lng } = response;
 
         // Validate coordinates before setting state
         if (typeof lat === 'number' && typeof lng === 'number' &&

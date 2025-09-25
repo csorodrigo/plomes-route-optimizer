@@ -70,7 +70,7 @@ function validateEnvironmentVariables() {
     }
 
     // Check important but optional variables
-    const optional = ['DATABASE_PATH', 'GOOGLE_MAPS_API_KEY', 'POSITIONSTACK_API_KEY'];
+    const optional = ['GOOGLE_MAPS_API_KEY', 'POSITIONSTACK_API_KEY'];
     for (const envVar of optional) {
         if (!process.env[envVar]) {
             warnings.push(envVar);
@@ -86,17 +86,6 @@ function validateEnvironmentVariables() {
     if (!process.env.PORT) {
         process.env.PORT = '3001';
         console.log('ℹ️  PORT not set, defaulting to 3001');
-    }
-
-    if (!process.env.DATABASE_PATH) {
-        // Optimize database path for Railway environment
-        if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_GIT_COMMIT_SHA) {
-            process.env.DATABASE_PATH = '/tmp/customers.db';
-            console.log('ℹ️  DATABASE_PATH not set, using Railway optimized path: /tmp/customers.db');
-        } else {
-            process.env.DATABASE_PATH = './backend/cache/customers.db';
-            console.log('ℹ️  DATABASE_PATH not set, using default');
-        }
     }
 
     // Generate JWT secret if missing (for Railway)
@@ -869,23 +858,16 @@ app.get('/api/customers',
         let customers;
         
         if (lat && lng && radius) {
-            // Get customers within radius
             customers = await db.getCustomersByDistance(
                 parseFloat(lat),
                 parseFloat(lng),
                 parseFloat(radius)
             );
         } else {
-            // CRITICAL FIX: Return ALL customers with "Cliente" tag, not just geocoded ones
-            // This was causing the 300 vs 2253 customer count issue
-            const query = status
-                ? `SELECT * FROM customers WHERE geocoding_status = ? AND tags LIKE '%"Cliente"%'`
-                : `SELECT * FROM customers WHERE tags LIKE '%"Cliente"%' ORDER BY
-                   CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 0 ELSE 1 END,
-                   name ASC`;
-
-            const rawCustomers = await db.all(query, status ? [status] : []);
-            customers = db.parseTags(rawCustomers);
+            customers = await db.listCustomers({
+                status: status || null,
+                tag: 'Cliente'
+            });
         }
 
         res.json({
@@ -1135,32 +1117,96 @@ app.get('/api/geocoding/cep/:cep', async (req, res) => {
     const result = await geocodingService.geocodeByCep(cep);
 
     if (result) {
-      // Buscar endereço completo do ViaCEP
-      const cepClean = cep.replace(/\D/g, '');
-      try {
-        const axios = require('axios');
-        const viacepResponse = await axios.get(`https://viacep.com.br/ws/${cepClean}/json/`);
-        if (viacepResponse.data && !viacepResponse.data.erro) {
-          const address = `${viacepResponse.data.logradouro || ''}, ${viacepResponse.data.bairro || ''}, ${viacepResponse.data.localidade} - ${viacepResponse.data.uf}`;
+      // Initialize address from geocoding result
+      let address = result.address || `CEP ${cep}`;
 
-          // Return in format expected by getCepInfo
-          res.json({
-            lat: result.lat,
-            lng: result.lng,
-            address: address.trim(),
-            provider: result.provider,
-            success: true
-          });
-          return;
+      // If the geocoding service returned CEP data, format it properly
+      if (result.cepData) {
+        const { logradouro, bairro, cidade, estado } = result.cepData;
+        const addressParts = [
+          logradouro,
+          bairro,
+          cidade,
+          estado
+        ].filter(Boolean);
+
+        if (addressParts.length > 1) {
+          address = addressParts.join(', ');
         }
-      } catch (e) {
-        // Ignorar erro e retornar apenas coordenadas
       }
 
+      // Special handling for AwesomeAPI results that have more complete data available
+      if (result.provider === 'awesomeapi' && (address === `CEP ${cep}` || address === result.address)) {
+        // If we got a result from AwesomeAPI but the address is incomplete,
+        // let's try to get more complete address data
+        if (result.city && result.state) {
+          // Try to build a more complete address
+          const addressParts = [
+            result.address,
+            result.district || result.neighborhood,
+            result.city,
+            result.state
+          ].filter(Boolean);
+
+          if (addressParts.length > 1) {
+            address = addressParts.join(', ');
+          }
+        }
+      }
+
+      // If we still don't have a proper address, try multiple CEP providers for address info
+      if (address === `CEP ${cep}`) {
+        const cepClean = cep.replace(/\D/g, '');
+        const axios = require('axios');
+
+        try {
+          // Try BrasilAPI first (usually more reliable)
+          try {
+            const response = await axios.get(`https://brasilapi.com.br/api/cep/v1/${cepClean}`, { timeout: 5000 });
+            if (response.data && response.data.city) {
+              const { street, neighborhood, city, state } = response.data;
+              const addressParts = [street, neighborhood, city, state].filter(Boolean);
+              if (addressParts.length > 1) {
+                address = addressParts.join(', ');
+              }
+            }
+          } catch (brasilErr) {
+            // Try ViaCEP as fallback
+            try {
+              const response = await axios.get(`https://viacep.com.br/ws/${cepClean}/json/`, { timeout: 5000 });
+              if (response.data && !response.data.erro) {
+                const { logradouro, bairro, localidade, uf } = response.data;
+                const addressParts = [logradouro, bairro, localidade, uf].filter(Boolean);
+                if (addressParts.length > 1) {
+                  address = addressParts.join(', ');
+                }
+              }
+            } catch (viacepErr) {
+              // Last attempt with AwesomeAPI format (try to get full address)
+              try {
+                const response = await axios.get(`https://cep.awesomeapi.com.br/json/${cepClean}`, { timeout: 5000 });
+                if (response.data && response.data.address && response.data.city) {
+                  const { address: street, district, city, state } = response.data;
+                  const addressParts = [street, district, city, state].filter(Boolean);
+                  if (addressParts.length > 1) {
+                    address = addressParts.join(', ');
+                  }
+                }
+              } catch (awesomeErr) {
+                console.warn(`All CEP providers failed for ${cep}:`, { brasilErr: brasilErr.message, viacepErr: viacepErr.message, awesomeErr: awesomeErr.message });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Could not fetch address details for CEP:', cep, e.message);
+        }
+      }
+
+      // Return in format expected by getCepInfo
       res.json({
         lat: result.lat,
         lng: result.lng,
-        address: `CEP ${cep}`,
+        address: address.trim(),
         provider: result.provider,
         success: true
       });
@@ -1179,10 +1225,8 @@ app.get('/api/geocoding/cep/:cep', async (req, res) => {
   }
 });
 
-// Optimize route
-app.post('/api/routes/optimize',
-    (req, res, next) => authMiddleware ? authMiddleware.authenticate(req, res, next) : next(),
-    async (req, res) => {
+// Optimize route (public for testing)
+app.post('/api/routes/optimize', async (req, res) => {
     try {
         const { origin, waypoints, options = {} } = req.body;
         
@@ -1419,37 +1463,40 @@ app.post('/api/distance', (req, res) => {
 // Final attempt to setup auth routes if not already configured
 setupAuthRoutes();
 
-// Serve React app for all other routes (but NOT API routes)
-// Emergency login route for Vercel (direct route)
-app.post('/api/auth/login', express.json(), async (req, res) => {
-    try {
-        console.log('🚨 Emergency login route called');
-        const { email, password } = req.body;
+// Optional emergency login fallback (disabled by default)
+if (process.env.ENABLE_EMERGENCY_LOGIN === 'true') {
+    console.warn('⚠️  ENABLE_EMERGENCY_LOGIN is true – registering development-only login fallback');
+    app.post('/api/auth/login', express.json(), async (req, res) => {
+        try {
+            console.log('🚨 Emergency login route called');
+            const { email, password } = req.body;
 
-        // Basic hardcoded check for testing
-        if (email === 'gustavo.canuto@ciaramaquinas.com.br' && password === 'ciara123@') {
-            console.log('✅ Emergency login success');
-            res.json({
-                success: true,
-                message: 'Login successful (emergency route)',
-                user: { email: email },
-                token: 'emergency-token-123'
-            });
-        } else {
-            console.log('❌ Emergency login failed');
-            res.status(401).json({
+            if (email === 'gustavo.canuto@ciaramaquinas.com.br' && password === 'ciara123@') {
+                console.log('✅ Emergency login success');
+                res.json({
+                    success: true,
+                    message: 'Login successful (emergency route)',
+                    user: { email },
+                    token: 'emergency-token-123'
+                });
+            } else {
+                console.log('❌ Emergency login failed');
+                res.status(401).json({
+                    success: false,
+                    message: 'Invalid credentials'
+                });
+            }
+        } catch (error) {
+            console.error('💥 Emergency login error:', error);
+            res.status(500).json({
                 success: false,
-                message: 'Invalid credentials'
+                message: 'Server error'
             });
         }
-    } catch (error) {
-        console.error('💥 Emergency login error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server error'
-        });
-    }
-});
+    });
+}
+
+// Serve React app for all other routes (but NOT API routes)
 
 app.get('*', (req, res, next) => {
     // Skip this handler for API routes completely - let them 404 naturally if not found
