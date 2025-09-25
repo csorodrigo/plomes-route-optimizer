@@ -205,6 +205,21 @@ class GoogleDirectionsService {
     }
 
     /**
+     * Encode points to Google polyline format for fallback routes
+     */
+    encodePolyline(points) {
+        try {
+            const polyline = require('@mapbox/polyline');
+            // Convert points to [lat, lng] format for polyline encoding
+            const coordinates = points.map(point => [point.lat, point.lng]);
+            return polyline.encode(coordinates);
+        } catch (error) {
+            console.warn('Error encoding polyline:', error);
+            return '';
+        }
+    }
+
+    /**
      * Parse distance matrix response
      */
     parseDistanceMatrix(data) {
@@ -248,6 +263,9 @@ class GoogleDirectionsService {
         // Estimate driving time (assuming 50 km/h average speed in urban areas)
         const estimatedDuration = Math.round((totalDistance / 1000) * 72); // seconds
 
+        // Generate a simple polyline for straight line connections
+        const polylineString = this.encodePolyline(points);
+
         return {
             success: true,
             route: {
@@ -259,7 +277,7 @@ class GoogleDirectionsService {
                     text: `${Math.round(estimatedDuration / 60)} min`,
                     value: estimatedDuration
                 },
-                polyline: '',
+                polyline: polylineString,
                 bounds: {
                     northeast: {
                         lat: Math.max(...points.map(p => p.lat)),

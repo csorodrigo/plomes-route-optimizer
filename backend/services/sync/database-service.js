@@ -560,17 +560,20 @@ class DatabaseService {
 
         const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
 
+        const payload = {
+            id: generateId(),
+            address,
+            latitude: toNumber(lat),
+            longitude: toNumber(lng),
+            provider,
+            accuracy: null,
+            created_at: new Date().toISOString(),
+            expires_at: expiresAt
+        };
+
         const { error } = await this.client
             .from('geocoding_cache')
-            .upsert({
-                address,
-                latitude: toNumber(lat),
-                longitude: toNumber(lng),
-                provider,
-                accuracy: null,
-                created_at: new Date().toISOString(),
-                expires_at: expiresAt
-            }, { onConflict: 'address' });
+            .upsert(payload, { onConflict: 'address' });
 
         if (error) throw error;
     }

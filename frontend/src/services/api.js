@@ -85,11 +85,14 @@ const apiService = {
   geocodeBatch: (addresses) => api.post('/api/geocoding/batch', { addresses }),
 
   // Route optimization
-  optimizeRoute: (origin, waypoints, options = {}) => 
-    api.post('/api/routes/optimize', { 
-      origin, 
-      waypoints, 
-      options 
+  optimizeRoute: (origin, waypoints, options = {}) =>
+    api.post('/api/routes/optimize', {
+      origin,
+      waypoints,
+      options: {
+        useRealRoutes: true, // Always request real routes with road data
+        ...options
+      }
     }),
 
   calculateRoute: (waypoints) => 
