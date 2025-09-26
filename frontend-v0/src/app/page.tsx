@@ -44,6 +44,7 @@ export default function RouteOptimizerPage() {
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [customersInRadius, setCustomersInRadius] = useState<Customer[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<Customer[]>([]);
+  const [wasExplicitlyCleared, setWasExplicitlyCleared] = useState<boolean>(false); // Track if user cleared selection
   const [routeResult, setRouteResult] = useState<RouteOptimizationResponse | null>(null);
   const [routePolyline, setRoutePolyline] = useState<LatLngTuple[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState<boolean>(false);
@@ -113,6 +114,7 @@ export default function RouteOptimizerPage() {
 
     setLoadingCustomers(true);
     setNotification(null);
+    // Removed auto-reset of clear flag to prevent auto-selection
 
     try {
       const geocode = await apiService.geocodeAddress(origin);
@@ -141,7 +143,8 @@ export default function RouteOptimizerPage() {
         if (preserved.length > 0) {
           return preserved;
         }
-        return filtered.slice(0, Math.min(5, filtered.length));
+        // Don't auto-select any customers - let user choose manually
+        return [];
       });
 
       setRouteResult(null);
@@ -182,14 +185,17 @@ export default function RouteOptimizerPage() {
       if (preserved.length > 0) {
         return preserved;
       }
-      return filtered.slice(0, Math.min(5, filtered.length));
+      return []; // Never auto-select customers
     });
-  }, [distanceFilter, originDetails, allCustomers]);
+  }, [distanceFilter, originDetails, allCustomers, wasExplicitlyCleared]);
 
   const handleToggleCustomer = useCallback(
     (customerId: string) => {
       const availableCustomer = customersInRadius.find((customer) => customer.id === customerId);
       if (!availableCustomer) return;
+
+      // Reset the clear flag since user is manually interacting with selections
+      setWasExplicitlyCleared(false);
 
       setSelectedCustomers((prev) => {
         const exists = prev.some((customer) => customer.id === customerId);
@@ -337,6 +343,7 @@ export default function RouteOptimizerPage() {
     setCustomersInRadius([]); // Clear customers in radius
     setRouteResult(null);
     setRoutePolyline([]);
+    setWasExplicitlyCleared(true); // Mark as explicitly cleared by user
     setNotification({ type: "info", message: "Dados limpos. CEP removido, filtro resetado para 25km e clientes zerados." });
   }, []);
 
