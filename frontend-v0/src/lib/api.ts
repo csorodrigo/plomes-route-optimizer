@@ -67,11 +67,40 @@ export interface StatisticsResponse {
   lastSync?: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? (
-  typeof window !== "undefined" && window.location.origin.includes("vercel.app")
-    ? "" // Use relative URLs in production on Vercel
-    : "http://localhost:3001" // Use localhost for local development
-);
+// Environment-based API configuration
+const getApiBaseUrl = (): string => {
+  // 1. Use explicit environment variable if provided
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+
+  // 2. Production detection (works in both SSR and client)
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isVercel = process.env.VERCEL === '1' ||
+                   (typeof window !== "undefined" && window.location.hostname.includes('vercel.app'));
+
+  // 3. Use relative URLs for Vercel production deployments
+  if (isProduction && isVercel) {
+    return ""; // Relative URLs - let Vercel handle routing
+  }
+
+  // 4. Fallback to localhost for development
+  return "http://localhost:3001";
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+// Debug logging for API configuration
+if (typeof window !== "undefined" && process.env.NODE_ENV === 'development') {
+  console.log('🔧 API Configuration Debug:', {
+    NODE_ENV: process.env.NODE_ENV,
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+    VERCEL: process.env.VERCEL,
+    hostname: window.location.hostname,
+    origin: window.location.origin,
+    calculatedBaseUrl: API_BASE_URL,
+  });
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,

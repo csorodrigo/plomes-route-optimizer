@@ -6,6 +6,11 @@
       "maxDuration": 30
     }
   },
+  "build": {
+    "env": {
+      "NODE_ENV": "production"
+    }
+  },
   "env": {
     "NODE_ENV": "production",
     "PLOOME_API_KEY": "A7EEF49A41433800AFDF42AE5BBF22755D1FC4B863C9B70A87F4CE300F38164058CD54A3E8590E78CDBF986FC8C0F9F4E7FF32884F3D37D58178DD8749EFA1D3",

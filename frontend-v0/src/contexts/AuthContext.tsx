@@ -34,6 +34,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const refreshAuth = async () => {
+    // Check if we're on the client side
+    if (typeof window === 'undefined') {
+      setLoading(false);
+      return;
+    }
+
     const token = localStorage.getItem('auth_token');
 
     if (!token) {
@@ -47,17 +53,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await apiService.verify();
 
       if (response.success && response.user) {
-        setUser(response.user as User);
+        setUser(response.user as unknown as User);
         setIsAuthenticated(true);
       } else {
         // Invalid token
-        localStorage.removeItem('auth_token');
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth_token');
+        }
         setUser(null);
         setIsAuthenticated(false);
       }
     } catch (error) {
       console.error('Auth verification failed:', error);
-      localStorage.removeItem('auth_token');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('auth_token');
+      }
       setUser(null);
       setIsAuthenticated(false);
     } finally {
@@ -71,7 +81,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const data = await apiService.login(email, password);
 
       if (data.success && data.token) {
-        localStorage.setItem('auth_token', data.token);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('auth_token', data.token);
+        }
         setUser(data.user as User);
         setIsAuthenticated(true);
         return { success: true };
@@ -90,7 +102,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('auth_token');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth_token');
+    }
     setUser(null);
     setIsAuthenticated(false);
     setLoading(false);
