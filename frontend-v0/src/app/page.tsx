@@ -14,6 +14,7 @@ import { apiService, Customer, RouteOptimizationResponse } from "@/lib/api";
 import { filterCustomersInRadius } from "@/lib/geo";
 import { useAuthContext } from "@/contexts/AuthContext";
 import pdfExportService from "@/lib/pdf-export-service";
+import { PDFDebugPanel } from "@/components/pdf-debug";
 
 interface OriginDetails {
   lat: number;
@@ -294,17 +295,25 @@ export default function RouteOptimizerPage() {
   }, [decodeRoutePolyline, origin, originDetails, selectedCustomers]);
 
   const handleExportRoute = useCallback(async () => {
+    console.log('🚀 Export PDF button clicked');
+    console.log('Route result:', routeResult);
+    console.log('Selected customers:', selectedCustomers);
+    console.log('Origin details:', originDetails);
+
     if (!routeResult || selectedCustomers.length === 0) {
+      console.log('❌ Export failed: No route or customers');
       setNotification({ type: "error", message: "Gere uma rota antes de exportar." });
       return;
     }
 
     if (!originDetails) {
+      console.log('❌ Export failed: No origin details');
       setNotification({ type: "error", message: "Dados da origem não encontrados." });
       return;
     }
 
     try {
+      console.log('🔄 Starting PDF generation...');
       setNotification({ type: "info", message: "Gerando PDF..." });
 
       const result = await pdfExportService.generateRouteReport(
@@ -313,19 +322,23 @@ export default function RouteOptimizerPage() {
         originDetails
       );
 
+      console.log('📄 PDF generation result:', result);
+
       if (result.success) {
+        console.log('✅ PDF generation successful:', result.filename);
         setNotification({
           type: "info",
           message: `PDF exportado com sucesso: ${result.filename}`
         });
       } else {
+        console.log('❌ PDF generation failed:', result.message);
         setNotification({
           type: "error",
           message: result.message || "Falha ao gerar PDF"
         });
       }
     } catch (error) {
-      console.error("Error exporting PDF:", error);
+      console.error("❌ Error exporting PDF:", error);
       setNotification({
         type: "error",
         message: "Erro ao gerar PDF. Tente novamente."
@@ -556,6 +569,9 @@ export default function RouteOptimizerPage() {
           />
         </div>
       </div>
+
+      {/* PDF Debug Panel - only show in development */}
+      {process.env.NODE_ENV === 'development' && <PDFDebugPanel />}
     </div>
   );
 }

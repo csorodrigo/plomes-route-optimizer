@@ -51,34 +51,53 @@ export default async function handler(req, res) {
 
     const { lat, lng, radius } = req.query;
 
-    // Base query to get all geocoded customers (only customers with valid lat/lng)
-    let query = supabase
-      .from('customers')
-      .select(`
-        id,
-        name,
-        email,
-        phone,
-        address,
-        cep,
-        city,
-        state,
-        latitude,
-        longitude,
-        geocoded_address,
-        geocoding_status
-      `)
-      .not('latitude', 'is', null)
-      .not('longitude', 'is', null)
-      .order('name', { ascending: true });
+    // Fetch all customers using batched queries to bypass the 1000-record limit
+    let allCustomers = [];
+    let hasMore = true;
+    let offset = 0;
+    const batchSize = 1000;
 
-    // Execute the query
-    const { data: customersData, error: queryError } = await query;
+    while (hasMore) {
+      const { data: batchData, error: batchError } = await supabase
+        .from('customers')
+        .select(`
+          id,
+          name,
+          email,
+          phone,
+          address,
+          cep,
+          city,
+          state,
+          latitude,
+          longitude,
+          geocoded_address,
+          geocoding_status
+        `)
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null)
+        .range(offset, offset + batchSize - 1)
+        .order('name', { ascending: true });
 
-    if (queryError) {
-      console.error('Supabase query error:', queryError);
-      throw new Error(`Database query failed: ${queryError.message}`);
+      if (batchError) {
+        console.error('Supabase batch query error:', batchError);
+        throw new Error(`Database query failed: ${batchError.message}`);
+      }
+
+      if (batchData && batchData.length > 0) {
+        allCustomers = allCustomers.concat(batchData);
+        offset += batchSize;
+
+        // If we got less than the batch size, we've reached the end
+        if (batchData.length < batchSize) {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
     }
+
+    const customersData = allCustomers;
 
     let customers = customersData || [];
 

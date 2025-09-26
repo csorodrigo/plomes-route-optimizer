@@ -42,50 +42,114 @@ class PDFExportService {
     customers: Customer[],
     origin: OriginDetails
   ): Promise<{ success: boolean; filename?: string; message: string; error?: string }> {
+    console.log('🔧 Starting PDF generation...', { route, customers: customers.length, origin });
+
     try {
-      const pdf = new jsPDF('portrait', 'mm', 'a4');
+      // Validate inputs
+      if (!route || !customers || !origin) {
+        throw new Error('Missing required data for PDF generation');
+      }
+
+      if (customers.length === 0) {
+        throw new Error('No customers provided for PDF generation');
+      }
+
+      console.log('✅ Input validation passed');
+
+      // Test basic jsPDF functionality first
+      let pdf: jsPDF;
+      try {
+        pdf = new jsPDF('portrait', 'mm', 'a4');
+        console.log('✅ jsPDF instance created successfully');
+      } catch (pdfError) {
+        console.error('❌ Failed to create jsPDF instance:', pdfError);
+        throw new Error(`PDF creation failed: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`);
+      }
+
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
+      console.log(`📏 Page dimensions: ${pageWidth}x${pageHeight}mm`);
 
       // Initialize page
       let currentY = this.config.margin;
 
-      // Add header with logo and company branding
-      currentY = await this.addHeader(pdf, currentY, pageWidth);
+      try {
+        // Add header with logo and company branding
+        console.log('📝 Adding header...');
+        currentY = await this.addHeader(pdf, currentY, pageWidth);
+        console.log('✅ Header added successfully');
 
-      // Add title
-      currentY = this.addTitle(pdf, currentY, pageWidth);
+        // Add title
+        console.log('📝 Adding title...');
+        currentY = this.addTitle(pdf, currentY, pageWidth);
+        console.log('✅ Title added successfully');
 
-      // Add route summary
-      currentY = this.addRouteSummary(pdf, currentY, pageWidth, route, origin);
+        // Add route summary
+        console.log('📝 Adding route summary...');
+        currentY = this.addRouteSummary(pdf, currentY, pageWidth, route, origin);
+        console.log('✅ Route summary added successfully');
 
-      // Add route statistics
-      currentY = this.addRouteStatistics(pdf, currentY, pageWidth, route);
+        // Add route statistics
+        console.log('📝 Adding route statistics...');
+        currentY = this.addRouteStatistics(pdf, currentY, pageWidth, route);
+        console.log('✅ Route statistics added successfully');
 
-      // Add customer list in route order
-      await this.addCustomerList(pdf, currentY, pageWidth, pageHeight, route, customers);
+        // Add customer list in route order
+        console.log('📝 Adding customer list...');
+        await this.addCustomerList(pdf, currentY, pageWidth, pageHeight, route, customers);
+        console.log('✅ Customer list added successfully');
 
-      // Add footer
-      this.addFooter(pdf, pageWidth, pageHeight);
+        // Add footer
+        console.log('📝 Adding footer...');
+        this.addFooter(pdf, pageWidth, pageHeight);
+        console.log('✅ Footer added successfully');
+      } catch (contentError) {
+        console.error('❌ Error adding content to PDF:', contentError);
+        throw new Error(`PDF content generation failed: ${contentError instanceof Error ? contentError.message : 'Unknown error'}`);
+      }
 
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
       const filename = `Rota_CIA_Maquinas_${timestamp}.pdf`;
+      console.log(`📁 Generated filename: ${filename}`);
+
+      // Test PDF output before saving
+      try {
+        const blob = pdf.output('blob');
+        console.log(`📊 PDF blob size: ${blob.size} bytes`);
+
+        if (blob.size < 1000) {
+          throw new Error('Generated PDF is too small, likely empty or corrupted');
+        }
+      } catch (outputError) {
+        console.error('❌ Error generating PDF output:', outputError);
+        throw new Error(`PDF output generation failed: ${outputError instanceof Error ? outputError.message : 'Unknown error'}`);
+      }
 
       // Save the PDF
-      pdf.save(filename);
+      try {
+        console.log('💾 Saving PDF...');
+        pdf.save(filename);
+        console.log('✅ PDF saved successfully');
+      } catch (saveError) {
+        console.error('❌ Error saving PDF:', saveError);
+        throw new Error(`PDF save failed: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`);
+      }
 
+      console.log('🎉 PDF generation completed successfully');
       return {
         success: true,
         filename,
         message: 'PDF exported successfully'
       };
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error('❌ PDF generation failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred during PDF generation';
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        message: 'Failed to generate PDF'
+        error: errorMessage,
+        message: `Failed to generate PDF: ${errorMessage}`
       };
     }
   }
@@ -98,9 +162,11 @@ class PDFExportService {
     let logoHeight = 0;
 
     try {
+      console.log('🖼️ Attempting to load logo...');
       // Load and add logo with proper aspect ratio
       const logoData = await this.loadImageWithDimensions('/logo.png');
       const aspectRatio = logoData.width / logoData.height;
+      console.log(`✅ Logo loaded successfully (${logoData.width}x${logoData.height}, ratio: ${aspectRatio.toFixed(2)})`);
 
       // Calculate logo dimensions maintaining aspect ratio
       if (aspectRatio > 1) {
@@ -121,11 +187,18 @@ class PDFExportService {
         logoWidth,
         logoHeight
       );
+      console.log(`✅ Logo added to PDF (${logoWidth}x${logoHeight}mm)`);
     } catch (error) {
-      console.warn('Could not load logo:', error);
+      console.warn('⚠️ Could not load logo, using text fallback:', error);
       // Continue without logo - use text fallback
       logoWidth = 0;
       logoHeight = 20;
+
+      // Add a simple text-based logo replacement
+      pdf.setFontSize(12);
+      pdf.setTextColor(this.config.colors.primary);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('[LOGO]', this.config.margin, startY + 15);
     }
 
     // Company name and title
@@ -593,25 +666,74 @@ class PDFExportService {
     height: number;
   }> {
     return new Promise((resolve, reject) => {
+      console.log(`🖼️ Loading image from: ${src}`);
+
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Could not get canvas context'));
-          return;
-        }
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        resolve({
-          dataUrl: canvas.toDataURL('image/png'),
-          width: img.width,
-          height: img.height
-        });
+
+      // Set up error handling
+      img.onerror = (error) => {
+        console.error(`❌ Image load failed for ${src}:`, error);
+        reject(new Error(`Failed to load image from ${src}`));
       };
-      img.onerror = reject;
+
+      img.onload = () => {
+        try {
+          console.log(`✅ Image loaded successfully: ${img.width}x${img.height}`);
+
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          if (!ctx) {
+            console.error('❌ Could not get canvas 2D context');
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+
+          const dataUrl = canvas.toDataURL('image/png');
+          console.log(`✅ Image converted to data URL (length: ${dataUrl.length})`);
+
+          resolve({
+            dataUrl,
+            width: img.width,
+            height: img.height
+          });
+        } catch (canvasError) {
+          console.error('❌ Error processing image in canvas:', canvasError);
+          reject(new Error(`Failed to process image: ${canvasError instanceof Error ? canvasError.message : 'Unknown canvas error'}`));
+        }
+      };
+
+      // Add timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        console.error(`❌ Image load timeout for ${src}`);
+        img.onload = null;
+        img.onerror = null;
+        reject(new Error(`Image load timeout for ${src}`));
+      }, 10000); // 10 second timeout
+
+      // Override the onload to clear timeout
+      const originalOnload = img.onload;
+      img.onload = (event) => {
+        clearTimeout(timeout);
+        if (originalOnload) {
+          originalOnload.call(img, event);
+        }
+      };
+
+      // Override the onerror to clear timeout
+      const originalOnerror = img.onerror;
+      img.onerror = (event) => {
+        clearTimeout(timeout);
+        if (originalOnerror) {
+          originalOnerror.call(img, event);
+        }
+      };
+
       img.src = src;
     });
   }
