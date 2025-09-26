@@ -1,8 +1,8 @@
 // Vercel Serverless Function for Customers API - REAL PLOOME + SUPABASE STORAGE
 // Serves geocoded customers from Supabase PostgreSQL with Ploome fallback
-import https from 'https';
-import http from 'http';
-import supabaseKV from '../lib/supabase.js';
+const https = require('https');
+const http = require('http');
+const supabaseKV = require('./lib/supabase.js');
 
 // Node.js HTTP request utility for Vercel serverless compatibility
 function makeHttpRequest(url, options = {}) {
@@ -90,7 +90,7 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
     throw lastError;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // Configure CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -450,4 +450,4 @@ export default async function handler(req, res) {
             timestamp: new Date().toISOString()
         });
     }
-}
+};

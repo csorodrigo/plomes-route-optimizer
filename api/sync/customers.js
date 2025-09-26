@@ -1,7 +1,7 @@
 // Vercel Serverless Function for Customer Sync API - REAL PLOOME INTEGRATION ONLY
 // NO MOCK DATA FALLBACKS PER USER REQUIREMENTS
-import https from 'https';
-import http from 'http';
+const https = require('https');
+const http = require('http');
 
 // Node.js HTTP request utility for Vercel serverless compatibility
 function makeHttpRequest(url, options = {}) {
@@ -89,7 +89,7 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
     throw lastError;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // Configure CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

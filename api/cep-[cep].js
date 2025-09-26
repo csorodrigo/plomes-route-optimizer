@@ -1,6 +1,6 @@
 // Dynamic Vercel Serverless Function for CEP Geocoding: /api/cep-[cep]
-import https from 'https';
-import http from 'http';
+const https = require('https');
+const http = require('http');
 
 // Node.js HTTP request utility for Vercel serverless compatibility
 function makeHttpRequest(url, options = {}) {
@@ -180,7 +180,7 @@ const geocodingProviders = [
 ];
 
 // Main serverless function handler
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -271,4 +271,4 @@ export default async function handler(req, res) {
             details: error.message
         });
     }
-}
+};

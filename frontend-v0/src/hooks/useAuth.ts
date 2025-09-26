@@ -90,25 +90,11 @@ export const useRequireAuth = () => {
   const router = useRouter();
   const auth = useAuth();
 
-  // EMERGENCY FIX: Temporarily disable authentication requirement
-  // This allows the app to work while fixing the auth system
-  const emergencyAuth = {
-    ...auth,
-    isAuthenticated: true,
-    loading: false,
-    user: {
-      id: 1,
-      email: "admin@ciaramaquinas.com.br",
-      name: "Sistema Administrativo",
-      lastLogin: new Date().toISOString()
+  useEffect(() => {
+    if (!auth.loading && !auth.isAuthenticated) {
+      router.push("/login");
     }
-  };
+  }, [auth.loading, auth.isAuthenticated, router]);
 
-  // useEffect(() => {
-  //   if (!auth.loading && !auth.isAuthenticated) {
-  //     router.push("/login");
-  //   }
-  // }, [auth.loading, auth.isAuthenticated, router]);
-
-  return emergencyAuth;
+  return auth;
 };

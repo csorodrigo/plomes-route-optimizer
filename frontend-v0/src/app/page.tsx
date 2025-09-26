@@ -12,7 +12,7 @@ import { RouteStats } from "@/components/route-stats";
 import type { LatLngTuple } from "@/components/map-container";
 import { apiService, Customer, RouteOptimizationResponse } from "@/lib/api";
 import { filterCustomersInRadius } from "@/lib/geo";
-import { useRequireAuth } from "@/hooks/useAuth";
+import { useAuthContext } from "@/contexts/AuthContext";
 import pdfExportService from "@/lib/pdf-export-service";
 
 interface OriginDetails {
@@ -37,7 +37,7 @@ const DynamicMap = dynamic(
 );
 
 export default function RouteOptimizerPage() {
-  const auth = useRequireAuth();
+  const auth = useAuthContext();
   const [origin, setOrigin] = useState<string>("");
   const [distanceFilter, setDistanceFilter] = useState<number>(25);
   const [originDetails, setOriginDetails] = useState<OriginDetails | null>(null);

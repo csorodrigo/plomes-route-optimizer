@@ -1,8 +1,8 @@
 // Vercel Serverless Function for Batch Geocoding with Supabase Persistence - CRITICAL FIX
 // This API will geocode customers who don't have coordinates yet AND SAVE THEM to PostgreSQL
-import https from 'https';
-import http from 'http';
-import supabaseKV from '../../lib/supabase.js';
+const https = require('https');
+const http = require('http');
+const supabaseKV = require('../lib/supabase.js');
 
 // Node.js HTTP request utility for Vercel serverless compatibility
 function makeHttpRequest(url, options = {}) {
@@ -100,7 +100,7 @@ async function geocodeCustomerCep(cep) {
     }
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');

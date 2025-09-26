@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiService } from "@/lib/api";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 
 interface LoginForm {
@@ -16,6 +16,7 @@ interface LoginForm {
 
 export default function LoginPage() {
   const router = useRouter();
+  const auth = useAuthContext();
   const [formData, setFormData] = useState<LoginForm>({
     email: "",
     password: "",
@@ -23,6 +24,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!auth.loading && auth.isAuthenticated) {
+      router.push('/');
+    }
+  }, [auth.loading, auth.isAuthenticated, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -67,16 +75,13 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const data = await apiService.login(formData.email, formData.password);
+      const result = await auth.login(formData.email, formData.password);
 
-      if (data.success && data.token) {
-        // Store token in localStorage
-        localStorage.setItem("auth_token", data.token);
-
+      if (result.success) {
         // Redirect to main page
         router.push("/");
       } else {
-        setError(data.message || "Falha no login");
+        setError(result.message || "Falha no login");
       }
     } catch (err: unknown) {
       console.error("Login error:", err);

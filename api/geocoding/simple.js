@@ -1,7 +1,7 @@
 // Simple Geocoding API - Production Ready Without Supabase Dependencies
 // This API will geocode customers directly without requiring persistent storage setup
-import https from 'https';
-import http from 'http';
+const https = require('https');
+const http = require('http');
 
 // Node.js HTTP request utility for Vercel serverless compatibility
 function makeHttpRequest(url, options = {}) {
@@ -99,7 +99,7 @@ async function geocodeCustomerCep(cep) {
     }
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');

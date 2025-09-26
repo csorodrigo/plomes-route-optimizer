@@ -224,17 +224,53 @@ class AuthMiddleware {
         next();
     };
 
-    // Security headers middleware
+    // Enhanced security headers middleware
     securityHeaders = (req, res, next) => {
+        // Prevent MIME type sniffing
         res.setHeader('X-Content-Type-Options', 'nosniff');
+
+        // Prevent clickjacking
         res.setHeader('X-Frame-Options', 'DENY');
+
+        // XSS Protection (legacy but still useful)
         res.setHeader('X-XSS-Protection', '1; mode=block');
-        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+
+        // HSTS for HTTPS connections
+        if (req.secure || req.get('X-Forwarded-Proto') === 'https') {
+            res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+        }
+
+        // Referrer Policy
         res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-        
-        // Remove server header
+
+        // Permissions Policy (Feature Policy successor)
+        res.setHeader('Permissions-Policy',
+            'camera=(), microphone=(), geolocation=self, payment=(), usb=()'
+        );
+
+        // Content Security Policy
+        const csp = [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net",
+            "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net",
+            "img-src 'self' data: https: blob:",
+            "connect-src 'self' https: wss:",
+            "font-src 'self' https://cdn.jsdelivr.net",
+            "object-src 'none'",
+            "media-src 'self'",
+            "frame-src 'none'"
+        ].join('; ');
+        res.setHeader('Content-Security-Policy', csp);
+
+        // Remove revealing headers
         res.removeHeader('X-Powered-By');
-        
+        res.removeHeader('Server');
+
+        // Add security-related headers
+        res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+
         next();
     };
 
