@@ -230,7 +230,7 @@ class PDFExportService {
     pdf.setFont('helvetica', 'bold');
     pdf.text('ESTATÍSTICAS DA ROTA', this.config.margin, startY);
 
-    let currentY = startY + 15;
+    const currentY = startY + 15;
 
     // Create statistics boxes with better spacing
     const availableWidth = pageWidth - (2 * this.config.margin);
@@ -421,7 +421,7 @@ class PDFExportService {
     pdf.text(footerText, footerX, footerY);
 
     // Page number
-    const pageNum = `Página ${pdf.internal.getNumberOfPages()}`;
+    const pageNum = `Página ${(pdf as any).internal.getNumberOfPages()}`;
     pdf.text(pageNum, pageWidth - this.config.margin - 20, footerY);
   }
 
@@ -478,12 +478,12 @@ class PDFExportService {
     }
 
     const routeCustomers: (Customer & { distanceFromPrevious?: number })[] = [];
-    let previousWaypoint: any = null;
+    let previousWaypoint: Record<string, unknown> | null = null;
 
     // Filter out origin waypoints
     const customerWaypoints = route.waypoints.filter((waypoint) => {
       // Exclude origin points by name or isOrigin flag
-      if (waypoint.name === 'Origem' || waypoint.name === 'Ponto de Origem' || (waypoint as any).isOrigin) {
+      if (waypoint.name === 'Origem' || waypoint.name === 'Ponto de Origem' || (waypoint as Record<string, unknown>).isOrigin) {
         return false;
       }
       // Include waypoints that have customer data
@@ -494,12 +494,12 @@ class PDFExportService {
       // Try multiple ways to match customer
       let customer = customers.find(c => c.id === waypoint.id);
 
-      if (!customer && (waypoint as any).customer_id) {
-        customer = customers.find(c => c.id === (waypoint as any).customer_id);
+      if (!customer && (waypoint as Record<string, unknown>).customer_id) {
+        customer = customers.find(c => c.id === (waypoint as Record<string, unknown>).customer_id);
       }
 
-      if (!customer && (waypoint as any).customerId) {
-        customer = customers.find(c => c.id === (waypoint as any).customerId);
+      if (!customer && (waypoint as Record<string, unknown>).customerId) {
+        customer = customers.find(c => c.id === (waypoint as Record<string, unknown>).customerId);
       }
 
       // Try matching by name if ID matching fails
@@ -508,13 +508,13 @@ class PDFExportService {
       }
 
       if (customer) {
-        const customerWithDistance = { ...customer };
+        const customerWithDistance: Customer & { distanceFromPrevious?: number } = { ...customer };
 
         // Calculate distance from previous point
         if (previousWaypoint) {
           customerWithDistance.distanceFromPrevious = this.calculateDistance(
-            previousWaypoint.lat,
-            previousWaypoint.lng,
+            (previousWaypoint as any).lat,
+            (previousWaypoint as any).lng,
             waypoint.lat,
             waypoint.lng
           );
