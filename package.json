@@ -12,8 +12,6 @@
     "build": "cd frontend && npm run build",
     "build:serve": "cd frontend && npm run build && npm run serve",
     "sync:ploome": "node backend/services/sync/sync-customers.js",
-    "geocode": "node backend/geocode-all.js",
-    "reset:user": "node backend/reset-default-user.js",
     "clean:db": "node backend/scripts/clean-database.js",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -34,7 +32,6 @@
   "dependencies": {
     "@mapbox/polyline": "^1.2.1",
     "@supabase/supabase-js": "^2.57.4",
-    "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
@@ -52,10 +49,12 @@
     "@babel/core": "^7.22.0",
     "@babel/preset-env": "^7.22.0",
     "@babel/preset-react": "^7.22.0",
+    "@playwright/test": "^1.55.1",
     "@testing-library/dom": "^9.3.0",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",
     "@testing-library/user-event": "^14.4.0",
+    "axios": "^1.12.2",
     "babel-jest": "^29.5.0",
     "colors": "^1.4.0",
     "concurrently": "^8.2.2",
@@ -64,8 +63,7 @@
     "jest-environment-jsdom": "^29.5.0",
     "jest-transform-stub": "^2.0.0",
     "nodemon": "^3.0.1",
-    "playwright": "^1.55.1",
-    "sqlite3": "^5.1.6"
+    "playwright": "^1.55.1"
   },
   "engines": {
     "node": ">=16.0.0"

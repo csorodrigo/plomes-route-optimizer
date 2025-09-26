@@ -111,7 +111,7 @@ const Statistics = ({ statistics: propStatistics }) => {
       console.log('Statistics API response:', response);
 
       // Extract statistics from the response - handle both response formats
-      const stats = response.statistics || response;
+      const stats = response.data?.statistics || response.statistics || response.data;
       console.log('Extracted statistics:', stats);
 
       setStatistics(stats);
@@ -126,7 +126,15 @@ const Statistics = ({ statistics: propStatistics }) => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Nunca';
-    return new Date(dateString).toLocaleString('pt-BR');
+
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Data inválida';
+      return date.toLocaleString('pt-BR');
+    } catch (error) {
+      console.error('Date parsing error:', error);
+      return 'Data inválida';
+    }
   };
 
   const formatDuration = (minutes) => {
@@ -225,7 +233,15 @@ const Statistics = ({ statistics: propStatistics }) => {
           <StatCard
             title="Última Sincronização"
             value={statistics.lastSync ? '✓' : '✗'}
-            subtitle={formatDate(statistics.lastSync?.completed_at)}
+            subtitle={(() => {
+              if (!statistics.lastSync) return 'Nunca';
+
+              // Handle nested lastSync structure
+              const lastSyncData = statistics.lastSync.data || statistics.lastSync;
+              const dateString = lastSyncData?.completed_at || lastSyncData?.completedAt;
+
+              return formatDate(dateString);
+            })()}
             icon={<ScheduleIcon />}
             color={statistics.lastSync ? 'success' : 'error'}
           />
@@ -368,7 +384,12 @@ const Statistics = ({ statistics: propStatistics }) => {
                     </ListItemIcon>
                     <ListItemText
                       primary="Sincronização realizada"
-                      secondary={formatDate(statistics.lastSync.completed_at)}
+                      secondary={(() => {
+                        // Handle nested lastSync structure
+                        const lastSyncData = statistics.lastSync.data || statistics.lastSync;
+                        const dateString = lastSyncData?.completed_at || lastSyncData?.completedAt;
+                        return formatDate(dateString);
+                      })()}
                     />
                   </ListItem>
                 )}

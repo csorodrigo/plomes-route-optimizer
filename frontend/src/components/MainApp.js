@@ -60,7 +60,7 @@ const MainApp = ({ initialView = 'dashboard' }) => {
       console.log('MainApp - Statistics API response:', response);
 
       // Extract statistics from the response - handle both response formats
-      const stats = response.statistics || response;
+      const stats = response.data?.statistics || response.statistics || response.data;
       console.log('MainApp - Extracted statistics:', stats);
 
       setStatistics(stats);
@@ -256,9 +256,23 @@ const MainApp = ({ initialView = 'dashboard' }) => {
               Última sincronização:
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {statistics.lastSync 
-                ? new Date(statistics.lastSync.completed_at).toLocaleString('pt-BR')
-                : 'Nunca sincronizado'}
+              {(() => {
+                if (!statistics.lastSync) return 'Nunca sincronizado';
+
+                // Handle nested lastSync structure
+                const lastSyncData = statistics.lastSync.data || statistics.lastSync;
+                const dateString = lastSyncData?.completed_at || lastSyncData?.completedAt;
+
+                if (!dateString) return 'Data não disponível';
+
+                try {
+                  const date = new Date(dateString);
+                  return date.toLocaleString('pt-BR');
+                } catch (error) {
+                  console.error('Date parsing error:', error, 'dateString:', dateString);
+                  return 'Data inválida';
+                }
+              })()}
             </Typography>
           </Box>
         )}

@@ -9,7 +9,6 @@
 require('dotenv').config();
 const DatabaseService = require('./services/sync/database-service');
 const PloomeService = require('./services/sync/ploome-service');
-const fs = require('fs');
 
 async function checkAndFixDatabase() {
     console.log('\n🔍 Checking database integrity...\n');
@@ -38,7 +37,7 @@ async function checkAndFixDatabase() {
     try {
         // Initialize database
         db = new DatabaseService();
-        await db.initialize(); // Use initialize instead of just connect
+        await db.ensureInitialized();
         
         // Check current customer count
         const stats = await db.getStatistics();
@@ -57,26 +56,13 @@ async function checkAndFixDatabase() {
             }
             console.log('\n🚨 STARTING AUTOMATIC FIX...\n');
             
-            // Backup database
-            const dbPath = db.dbPath;
-            const backupPath = dbPath + '.backup-autofix-' + Date.now();
-            if (fs.existsSync(dbPath)) {
-                fs.copyFileSync(dbPath, backupPath);
-                console.log(`✅ Database backed up to: ${backupPath}`);
-            }
-            
             // Clear corrupted data
             console.log('🗑️  Clearing corrupted data...');
-            await db.run('DELETE FROM customers');
-            await db.run('DELETE FROM sync_logs');
-            await db.run('DELETE FROM routes');
+            await db.deleteAllRoutes();
+            await db.deleteAllSyncLogs();
+            await db.deleteAllGeocodingCache();
+            await db.deleteAllCustomers();
             console.log('✅ Database cleared\n');
-            
-            // Recreate structure
-            await db.createTables();
-            await db.runMigrations();
-            await db.createIndexes();
-            console.log('✅ Database structure recreated\n');
             
             // Re-sync with proper filtering
             const ploomeService = new PloomeService(process.env.PLOOME_API_KEY);
@@ -92,6 +78,8 @@ async function checkAndFixDatabase() {
             await ploomeService.fetchTags();
             console.log(`✅ ${ploomeService.tagCache.size} tags loaded\n`);
             
+            const syncStartedAt = new Date().toISOString();
+
             // Sync only customers with "Cliente" tag
             console.log('📥 Importing customers with "Cliente" tag only...');
             const customers = await ploomeService.fetchAllContacts((progress) => {
@@ -101,9 +89,10 @@ async function checkAndFixDatabase() {
             console.log(`\n✅ ${customers.length} customers imported\n`);
             
             // Save to database
+            let result = { successCount: 0, errorCount: 0 };
             if (customers.length > 0) {
                 console.log('💾 Saving to database...');
-                const result = await db.upsertCustomersBatch(customers);
+                result = await db.upsertCustomersBatch(customers);
                 console.log(`✅ ${result.successCount} customers saved\n`);
             }
             
@@ -115,7 +104,16 @@ async function checkAndFixDatabase() {
             console.log('\n✅ Database is now clean and ready!\n');
             
             // Log success
-            await db.logSync('auto-fix', finalStats.totalCustomers, 'Automatic database cleanup completed');
+            await db.logSync({
+                type: 'auto-fix',
+                fetched: customers.length,
+                updated: result.successCount,
+                errors: result.errorCount,
+                startedAt: syncStartedAt,
+                completedAt: new Date().toISOString(),
+                status: result.errorCount > 0 ? 'partial' : 'success',
+                errorMessage: result.errorCount > 0 ? 'Errors while updating customers during auto fix' : null
+            });
             
         } else if (stats.totalCustomers === 0) {
             console.log('\n📭 Database is empty. Running initial sync...\n');
@@ -125,18 +123,29 @@ async function checkAndFixDatabase() {
             await ploomeService.testConnection();
             await ploomeService.fetchTags();
             
+            const initialStartedAt = new Date().toISOString();
             const customers = await ploomeService.fetchAllContacts((progress) => {
                 process.stdout.write(`\r  📈 Progress: ${progress.fetched} customers imported...`);
             });
             
             console.log(`\n✅ ${customers.length} customers imported\n`);
             
+            let result = { successCount: 0, errorCount: 0 };
             if (customers.length > 0) {
-                const result = await db.upsertCustomersBatch(customers);
+                result = await db.upsertCustomersBatch(customers);
                 console.log(`✅ ${result.successCount} customers saved\n`);
             }
             
-            await db.logSync('initial', customers.length, 'Initial database population');
+            await db.logSync({
+                type: 'initial-sync',
+                fetched: customers.length,
+                updated: result.successCount,
+                errors: result.errorCount,
+                startedAt: initialStartedAt,
+                completedAt: new Date().toISOString(),
+                status: result.errorCount > 0 ? 'partial' : 'success',
+                errorMessage: result.errorCount > 0 ? 'Errors while saving customers during initial sync' : null
+            });
             
         } else {
             console.log(`✅ Database is healthy (${stats.totalCustomers} customers)\n`);
@@ -145,6 +154,23 @@ async function checkAndFixDatabase() {
     } catch (error) {
         console.error('❌ Error during database check:', error.message);
         console.error('   Stack:', error.stack);
+
+        if (db && db.isInitialized) {
+            try {
+                await db.logSync({
+                    type: 'auto-fix-error',
+                    fetched: 0,
+                    updated: 0,
+                    errors: 1,
+                    startedAt: new Date().toISOString(),
+                    completedAt: new Date().toISOString(),
+                    status: 'error',
+                    errorMessage: error.message
+                });
+            } catch (logError) {
+                console.error('⚠️  Failed to log auto-fix error:', logError.message);
+            }
+        }
         
         // In production with FORCE_DB_RESET, this is critical
         if (process.env.NODE_ENV === 'production' && forceReset) {

@@ -1,0 +1,39 @@
+{
+  "total": 1000,
+  "processed": 1000,
+  "successful": 948,
+  "failed": 52,
+  "skipped": 0,
+  "improved": 0,
+  "startTime": 1758760131214,
+  "lastSaveTime": null,
+  "estimatedTimeRemaining": 0,
+  "avgProcessingTime": 229.851,
+  "regionalStats": {},
+  "providerStats": {},
+  "currentBatch": 1,
+  "totalBatches": 20,
+  "errorsByType": {},
+  "rateLimitHits": 0,
+  "timestamp": 1758760361066,
+  "config": {
+    "concurrency": 8,
+    "batchSize": 50,
+    "delayBetweenRequests": 1000,
+    "delayBetweenBatches": 2000,
+    "maxRetries": 3,
+    "retryBaseDelay": 1000,
+    "retryBackoffMultiplier": 2,
+    "saveInterval": 25,
+    "prioritizeRegions": [
+      "CE",
+      "RN",
+      "PB",
+      "PE",
+      "MA",
+      "PI"
+    ],
+    "preferBrazilianProviders": true,
+    "fallbackToGlobal": true
+  }
+}

@@ -77,7 +77,7 @@ class RouteOptimizer {
                 try {
                     console.log('📍 Trying Google Maps Directions API...');
                     const directionsResult = await this.googleDirections.getDirections(optimizedWaypoints);
-                    
+
                     if (directionsResult.success) {
                         realRoute = directionsResult.route;
                         console.log('✅ Google Maps route obtained successfully');
@@ -88,13 +88,13 @@ class RouteOptimizer {
                     console.warn('⚠️  Google Maps failed:', error.message);
                 }
             }
-            
+
             // Se Google falhou ou não está configurado, usar OpenRouteService
             if (!realRoute) {
                 try {
                     console.log('🗺️  Trying OpenRouteService API (free alternative)...');
                     const openRouteResult = await this.openRouteService.getDirections(optimizedWaypoints);
-                    
+
                     if (openRouteResult.success) {
                         realRoute = openRouteResult.route;
                         console.log('✅ OpenRouteService route obtained successfully');
@@ -105,6 +105,12 @@ class RouteOptimizer {
                     console.warn('⚠️  OpenRouteService also failed:', error.message);
                     console.warn('⚠️  Falling back to straight lines between points');
                 }
+            }
+
+            // CRITICAL FIX: If both services failed, generate a fallback route with polyline
+            if (!realRoute) {
+                console.log('🔄 Generating fallback route with straight-line polyline...');
+                realRoute = this.generateFallbackRoute(optimizedWaypoints, totalDistance, estimatedTime);
             }
         } else {
             console.log('📍 Real routes disabled via options');
@@ -448,8 +454,74 @@ class RouteOptimizer {
     mutate(route) {
         const i = Math.floor(Math.random() * (route.length - 1)) + 1; // Não mutar origem
         const j = Math.floor(Math.random() * (route.length - 1)) + 1;
-        
+
         [route[i], route[j]] = [route[j], route[i]];
+    }
+
+    /**
+     * Generate fallback route with straight-line polyline when APIs fail
+     */
+    generateFallbackRoute(waypoints, totalDistance, estimatedTime) {
+        try {
+            const polyline = require('@mapbox/polyline');
+
+            // Generate polyline from waypoints
+            const coordinates = waypoints.map(point => [point.lat, point.lng]);
+            const polylineString = polyline.encode(coordinates);
+
+            return {
+                distance: {
+                    text: `${totalDistance.toFixed(1)} km`,
+                    value: totalDistance * 1000 // Convert to meters
+                },
+                duration: {
+                    text: `${estimatedTime} min`,
+                    value: estimatedTime * 60 // Convert to seconds
+                },
+                polyline: polylineString,
+                decodedPath: waypoints.map(point => ({ lat: point.lat, lng: point.lng })),
+                bounds: {
+                    northeast: {
+                        lat: Math.max(...waypoints.map(p => p.lat)),
+                        lng: Math.max(...waypoints.map(p => p.lng))
+                    },
+                    southwest: {
+                        lat: Math.min(...waypoints.map(p => p.lat)),
+                        lng: Math.min(...waypoints.map(p => p.lng))
+                    }
+                },
+                legs: waypoints.slice(0, -1).map((point, index) => {
+                    const nextPoint = waypoints[index + 1];
+                    const legDistance = this.getDistance(point, nextPoint) * 1000; // Convert to meters
+                    const legDuration = Math.round(legDistance / 1000 * 1.5 * 60); // Estimate 1.5 min per km
+
+                    return {
+                        distance: {
+                            text: `${(legDistance / 1000).toFixed(1)} km`,
+                            value: legDistance
+                        },
+                        duration: {
+                            text: `${Math.round(legDuration / 60)} min`,
+                            value: legDuration
+                        },
+                        start_location: point,
+                        end_location: nextPoint
+                    };
+                }),
+                fallback: true,
+                waypoint_order: waypoints.slice(1, -1).map((_, index) => index)
+            };
+        } catch (error) {
+            console.error('Error generating fallback route:', error);
+            // Return a minimal route without polyline as last resort
+            return {
+                distance: { text: `${totalDistance.toFixed(1)} km`, value: totalDistance * 1000 },
+                duration: { text: `${estimatedTime} min`, value: estimatedTime * 60 },
+                polyline: '',
+                decodedPath: waypoints.map(point => ({ lat: point.lat, lng: point.lng })),
+                fallback: true
+            };
+        }
     }
 }
 

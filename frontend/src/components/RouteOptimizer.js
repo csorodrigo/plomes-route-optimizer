@@ -250,9 +250,13 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
     setLoading(true);
     try {
       const response = await api.getCepInfo(originCep);
-      const { lat, lng, address } = response;
+      console.log('RouteOptimizer - CEP API response:', response);
 
-      if (lat && lng) {
+      // Handle different response formats
+      const data = response.data || response;
+      const { lat, lng, address } = data;
+
+      if (lat && lng && data.success !== false) {
         // Validate coordinates to prevent NaN errors
         const parsedLat = parseFloat(lat);
         const parsedLng = parseFloat(lng);
@@ -285,7 +289,6 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
       setLoading(false);
     }
   };
-
 
   const handleOriginDrag = (newPosition) => {
     setOrigin(newPosition);
@@ -357,22 +360,28 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
       }));
 
       const response = await api.optimizeRoute(origin, waypoints);
+      console.log('RouteOptimizer - API response received:', response);
 
-      if (response.success && response.route) {
-        setOptimizedRoute(response.route);
+      // CRITICAL FIX: Access response.data because axios wraps the response
+      const data = response.data || response;
 
-        // Calculate basic stats
+      if (data.success && data.route) {
+        console.log('RouteOptimizer - Using API route data:', data.route);
+        setOptimizedRoute(data.route);
+
+        // Calculate basic stats from API response
         const stats = {
-          totalDistance: response.route.totalDistance || 0,
-          estimatedTime: response.route.estimatedTime || 0,
+          totalDistance: data.route.totalDistance || 0,
+          estimatedTime: data.route.estimatedTime || 0,
           totalStops: selectedCustomers.length,
-          optimizationMethod: 'Proximidade'
+          optimizationMethod: data.route.realRoute ? 'API com rotas reais' : 'API otimização'
         };
         setRouteStats(stats);
 
-        toast.success(t('route.savedSuccessfully'));
+        toast.success('Rota otimizada com sucesso usando API!');
         if (onRouteOptimized) onRouteOptimized();
       } else {
+        console.warn('RouteOptimizer - API response invalid, falling back to local:', data);
         // Fallback to local optimization
         const localRoute = optimizeRouteLocally();
         setOptimizedRoute(localRoute);
@@ -382,13 +391,14 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
           totalStops: selectedCustomers.length,
           optimizationMethod: 'Local'
         });
-        toast.info(t('route.optimizedLocally'));
+        toast.info('Rota otimizada localmente (não foi salva no servidor)');
       }
     } catch (error) {
       console.error('Error optimizing route:', error);
 
       // Fallback to local optimization
       const localRoute = optimizeRouteLocally();
+      console.log('RouteOptimizer - Setting local optimized route:', localRoute);
       setOptimizedRoute(localRoute);
       setRouteStats({
         totalDistance: localRoute.totalDistance,
@@ -441,7 +451,7 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
 
     setSelectedCustomers(optimized);
 
-    return {
+    const localRoute = {
       waypoints: [
         origin,
         ...optimized.map(c => ({
@@ -454,6 +464,9 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
       totalDistance,
       estimatedTime: Math.round(totalDistance * 2) // Rough estimate: 2 min per km
     };
+
+    console.log('RouteOptimizer - Local route generated:', localRoute);
+    return localRoute;
   };
 
   const exportToPdf = async () => {
@@ -909,7 +922,7 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
                     );
                   })}
 
-                  {/* Route visualization - Linha vermelha sólida e grossa */}
+                  {/* Route visualization - PRIORITY ORDER: Real roads first, then straight lines */}
                   {optimizedRoute && optimizedRoute.realRoute && optimizedRoute.realRoute.decodedPath && (
                     <Polyline
                       positions={optimizedRoute.realRoute.decodedPath.map(p => [p.lat, p.lng])}
@@ -917,6 +930,20 @@ const RouteOptimizer = ({ onRouteOptimized }) => {
                         color: '#FF0000',
                         weight: 6,
                         opacity: 1.0
+                      }}
+                    />
+                  )}
+
+                  {/* Fallback: Straight lines between waypoints (only if no real route available) */}
+                  {optimizedRoute && optimizedRoute.waypoints &&
+                   !(optimizedRoute.realRoute && optimizedRoute.realRoute.decodedPath) && (
+                    <Polyline
+                      positions={optimizedRoute.waypoints.map(point => [point.lat, point.lng])}
+                      pathOptions={{
+                        color: '#FF6B6B',
+                        weight: 4,
+                        opacity: 0.8,
+                        dashArray: '10, 10'
                       }}
                     />
                   )}
