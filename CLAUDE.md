@@ -49,3 +49,7 @@ Sempre que aparecer erro de conexão, execute automaticamente:
 ```
 
 Este é um problema conhecido e recorrente do projeto que deve ser resolvido automaticamente.
+- Sempre leia @GUIA_VERCEL.md antes de fazer o deploy no Vercel via MCP.
+- sempre leia @GUIA_VERCEL.md antes de fazer o deploy no Vercel via MCP.
+- sempre leia @GUIA_VERCEL.md antes de fazer o deploy no Vercel via MCP.
+- SEMPRE USE OS SUBAGENTES ESPECIALISTAS
