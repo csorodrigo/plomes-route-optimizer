@@ -123,12 +123,68 @@ export async function GET(request: NextRequest) {
         query = query.not('latitude', 'is', null).not('longitude', 'is', null);
       }
 
-      // Apply pagination
-      const from = page * limit;
-      const to = from + limit - 1;
-      query = query.range(from, to);
+      // Apply pagination - but if limit is high, get all customers in batches
+      let allCustomers = [];
+      let totalCount = 0;
 
-      const { data: customers, error, count } = await query;
+      if (limit >= 5000) {
+        // Get all customers in batches to bypass Supabase 1000-row limit
+        const batchSize = 1000;
+        let currentPage = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const batchFrom = currentPage * batchSize;
+          const batchTo = batchFrom + batchSize - 1;
+
+          const batchQuery = supabase
+            .from('customers')
+            .select('*', { count: 'exact' });
+
+          // Apply same filters as main query
+          if (search) {
+            batchQuery.or(`name.ilike.%${search}%,email.ilike.%${search}%,address.ilike.%${search}%`);
+          }
+          if (geocodedOnly) {
+            batchQuery.not('latitude', 'is', null).not('longitude', 'is', null);
+          }
+
+          batchQuery.range(batchFrom, batchTo);
+
+          const { data: batchCustomers, error: batchError, count: batchCount } = await batchQuery;
+
+          if (batchError) {
+            console.error('[CUSTOMERS API] Batch error:', batchError);
+            throw batchError;
+          }
+
+          if (currentPage === 0) {
+            totalCount = batchCount || 0;
+          }
+
+          if (batchCustomers && batchCustomers.length > 0) {
+            allCustomers.push(...batchCustomers);
+            currentPage++;
+            hasMore = batchCustomers.length === batchSize; // Continue if we got a full batch
+          } else {
+            hasMore = false;
+          }
+        }
+
+        var customers = allCustomers;
+        var error = null;
+        var count = totalCount;
+      } else {
+        // Normal pagination for smaller limits
+        const from = page * limit;
+        const to = from + limit - 1;
+        query = query.range(from, to);
+
+        const result = await query;
+        var customers = result.data;
+        var error = result.error;
+        var count = result.count;
+      }
 
       if (error) {
         console.error('[CUSTOMERS API] Supabase error:', error);
