@@ -41,12 +41,14 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🔐 Fallback login attempt for: ${email}`);
+    console.log(`🔐 Available users:`, FALLBACK_USERS.map(u => u.email));
 
     // Find user in fallback data
     const user = FALLBACK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
 
     if (!user) {
       console.log(`❌ Fallback user not found: ${email}`);
+      console.log(`❌ Available emails:`, FALLBACK_USERS.map(u => u.email));
       return NextResponse.json(
         {
           success: false,
@@ -56,11 +58,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log(`✅ User found: ${user.email}`);
+    console.log(`🔐 Testing password against hash: ${user.password_hash}`);
+
     // Verify password with bcrypt
     const validPassword = await bcrypt.compare(password, user.password_hash);
+    console.log(`🔐 Password validation result: ${validPassword}`);
 
     if (!validPassword) {
       console.log(`❌ Invalid password for: ${email}`);
+      // Test all possible legacy hash formats
+      console.log(`🔐 Testing legacy hash formats...`);
+
+      // Try direct string comparison (legacy plain text)
+      if (password === user.password_hash) {
+        console.log(`✅ Legacy plain text match found`);
+      } else {
+        console.log(`❌ No legacy plain text match`);
+      }
+
       return NextResponse.json(
         {
           success: false,
