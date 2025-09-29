@@ -1,49 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from 'jsonwebtoken';
 
-interface JWTPayload {
-  userId: number;
-  email: string;
-  iat: number;
-  exp: number;
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
+    const authHeader = request.headers.get('Authorization');
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Authorization token required"
-        },
+        { success: false, error: "No token provided" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.substring(7);
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
     const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key-for-development-only";
 
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: number; email: string };
 
       return NextResponse.json({
         success: true,
         user: {
           id: decoded.userId,
-          email: decoded.email,
-          name: "Gustavo Canuto"
+          email: decoded.email
         }
       });
-
     } catch (jwtError) {
-      console.log('❌ JWT verification failed:', jwtError);
       return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid token"
-        },
+        { success: false, error: "Invalid token" },
         { status: 401 }
       );
     }
@@ -51,10 +35,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Token verification error:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: 'An unexpected error occurred during token verification'
-      },
+      { success: false, error: "Token verification failed" },
       { status: 500 }
     );
   }
