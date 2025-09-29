@@ -1,6 +1,16 @@
 import jsPDF from 'jspdf';
 import type { Customer, RouteOptimizationResponse } from './api';
 
+// Type for jsPDF internal methods that might be missing from types
+type JsPDFInternal = {
+  getNumberOfPages(): number;
+};
+
+// Extended Customer interface for PDF with route-specific properties
+interface PDFCustomer extends Customer {
+  distanceFromPrevious?: number;
+}
+
 interface OriginDetails {
   lat: number;
   lng: number;
@@ -280,7 +290,7 @@ class PDFExportService {
     pdf.setFont('helvetica', 'bold');
     pdf.text('ESTATÍSTICAS DA ROTA', this.config.margin, startY);
 
-    let currentY = startY + 15;
+    const currentY = startY + 15;
 
     // Create statistics boxes with better spacing
     const availableWidth = pageWidth - (2 * this.config.margin);
@@ -471,7 +481,7 @@ class PDFExportService {
     pdf.text(footerText, footerX, footerY);
 
     // Page number
-    const pageNum = `Página ${pdf.internal.getNumberOfPages()}`;
+    const pageNum = `Página ${(pdf.internal as unknown as JsPDFInternal).getNumberOfPages()}`;
     pdf.text(pageNum, pageWidth - this.config.margin - 20, footerY);
   }
 
@@ -527,13 +537,13 @@ class PDFExportService {
       return [];
     }
 
-    const routeCustomers: (Customer & { distanceFromPrevious?: number })[] = [];
-    let previousWaypoint: any = null;
+    const routeCustomers: PDFCustomer[] = [];
+    let previousWaypoint: { lat: number; lng: number } | null = null;
 
     // Filter out origin waypoints
     const customerWaypoints = route.waypoints.filter((waypoint) => {
       // Exclude origin points by name or isOrigin flag
-      if (waypoint.name === 'Origem' || waypoint.name === 'Ponto de Origem' || (waypoint as any).isOrigin) {
+      if (waypoint.name === 'Origem' || waypoint.name === 'Ponto de Origem' || ('isOrigin' in waypoint && (waypoint as { isOrigin?: boolean }).isOrigin)) {
         return false;
       }
       // Include waypoints that have customer data
@@ -544,12 +554,12 @@ class PDFExportService {
       // Try multiple ways to match customer
       let customer = customers.find(c => c.id === waypoint.id);
 
-      if (!customer && (waypoint as any).customer_id) {
-        customer = customers.find(c => c.id === (waypoint as any).customer_id);
+      if (!customer && 'customer_id' in waypoint) {
+        customer = customers.find(c => c.id === (waypoint as { customer_id?: string }).customer_id);
       }
 
-      if (!customer && (waypoint as any).customerId) {
-        customer = customers.find(c => c.id === (waypoint as any).customerId);
+      if (!customer && 'customerId' in waypoint) {
+        customer = customers.find(c => c.id === (waypoint as { customerId?: string }).customerId);
       }
 
       // Try matching by name if ID matching fails
@@ -558,7 +568,7 @@ class PDFExportService {
       }
 
       if (customer) {
-        const customerWithDistance = { ...customer };
+        const customerWithDistance: PDFCustomer = { ...customer };
 
         // Calculate distance from previous point
         if (previousWaypoint) {

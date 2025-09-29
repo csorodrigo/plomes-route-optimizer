@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiService, LoginResponse } from "@/lib/api";
+import { apiService } from "@/lib/api";
 
 
 interface LoginForm {
@@ -78,9 +78,9 @@ export default function LoginPage() {
       } else {
         setError(data.message || "Falha no login");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro de conexão. Verifique sua internet e tente novamente.';
       console.error("Login error:", err);
-      const errorMessage = err.message || "Erro de conexão. Verifique sua internet e tente novamente.";
       setError(errorMessage);
     } finally {
       setLoading(false);

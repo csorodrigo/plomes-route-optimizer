@@ -5,8 +5,8 @@
 
 export const serverEnv = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
-  PLOOME_API_KEY: process.env.PLOOMES_API_KEY ?? "",
-  PLOOME_BASE_URL: process.env.PLOOMES_BASE_URL ?? "https://public-api2.ploomes.com",
+  PLOOME_API_KEY: process.env.PLOOME_API_KEY ?? "",
+  PLOOME_BASE_URL: process.env.PLOOME_BASE_URL ?? "https://public-api2.ploomes.com",
   CLIENT_TAG_ID: process.env.CLIENT_TAG_ID ?? "40006184",
   JWT_SECRET: process.env.JWT_SECRET ?? "",
   SUPABASE_URL: process.env.SUPABASE_URL ?? "",

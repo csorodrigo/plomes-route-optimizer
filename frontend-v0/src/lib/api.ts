@@ -67,7 +67,9 @@ export interface StatisticsResponse {
   lastSync?: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { env as clientEnv } from "./env.client";
+
+const API_BASE_URL = clientEnv.API_URL;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -135,13 +137,13 @@ export interface LoginResponse {
 export const apiService = {
   login: (email: string, password: string) =>
     api
-      .post<LoginResponse>("/api/auth/login", {
+      .post<LoginResponse>("/api/auth/login-fallback", {
         email: email.toLowerCase(),
         password,
       })
       .then((res) => res.data),
 
-  verify: () => api.get<{ success: boolean; user: any }>("/api/auth/verify").then((res) => res.data),
+  verify: () => api.get<{ success: boolean; user: { id: number; email: string; name: string } }>("/api/auth/verify").then((res) => res.data),
 
   getStatistics: () => api.get<StatisticsResponse>("/api/statistics").then((res) => res.data),
 

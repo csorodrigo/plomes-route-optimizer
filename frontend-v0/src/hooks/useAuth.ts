@@ -3,13 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiService } from "@/lib/api";
-
-interface User {
-  id: number;
-  email: string;
-  name: string;
-  lastLogin: string;
-}
+import type { User } from "@/types/api";
 
 interface AuthState {
   user: User | null;
