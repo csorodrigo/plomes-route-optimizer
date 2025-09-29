@@ -68,9 +68,15 @@ class PDFExportService {
       // Add footer
       this.addFooter(pdf, pageWidth, pageHeight);
 
-      // Generate filename with timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
-      const filename = `Rota_CIA_Maquinas_${timestamp}.pdf`;
+      // Generate filename with proper timestamp format
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+
+      const filename = `Rota_CIA_Maquinas_${year}-${month}-${day}_${hours}-${minutes}.pdf`;
 
       // Save the PDF
       pdf.save(filename);
