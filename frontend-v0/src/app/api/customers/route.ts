@@ -1,26 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env.server";
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseClient, hasSupabase } from '@/lib/supabase';
 import https from 'https';
 import http from 'http';
+import type { Customer, PloomeResponse } from "@/types/api";
 
-const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-
-interface Customer {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  cep?: string;
-  city?: string;
-  state?: string;
-  latitude?: number;
-  longitude?: number;
-  ploome_person_id?: string;
-  created_date?: string;
-  last_interaction?: string;
-}
 
 interface PloomeContact {
   Id: number;
@@ -113,16 +97,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const page = parseInt(searchParams.get('page') || '0');
-    const limit = parseInt(searchParams.get('limit') || '25');
+    const limit = parseInt(searchParams.get('limit') || '5000');
     const geocodedOnly = searchParams.get('geocoded_only') === 'true';
 
     // Try to get customers from Supabase first
-    try {
-      console.log('[CUSTOMERS API] Checking Supabase PostgreSQL for customers...');
+    if (hasSupabase()) {
+      try {
+        console.log('[CUSTOMERS API] Checking Supabase PostgreSQL for customers...');
 
-      let query = supabase
-        .from('customers')
-        .select('*', { count: 'exact' });
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          throw new Error('Failed to initialize Supabase client');
+        }
+
+        let query = supabase
+          .from('customers')
+          .select('*', { count: 'exact' });
 
       // Apply search filter
       if (search) {
@@ -134,12 +124,71 @@ export async function GET(request: NextRequest) {
         query = query.not('latitude', 'is', null).not('longitude', 'is', null);
       }
 
-      // Apply pagination
-      const from = page * limit;
-      const to = from + limit - 1;
-      query = query.range(from, to);
+      // Apply pagination - but if limit is high, get all customers in batches
+      const allCustomers = [];
+      let totalCount = 0;
+      let customers;
+      let error;
+      let count;
 
-      const { data: customers, error, count } = await query;
+      if (limit >= 5000) {
+        // Get all customers in batches to bypass Supabase 1000-row limit
+        const batchSize = 1000;
+        let currentPage = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const batchFrom = currentPage * batchSize;
+          const batchTo = batchFrom + batchSize - 1;
+
+          const batchQuery = supabase
+            .from('customers')
+            .select('*', { count: 'exact' });
+
+          // Apply same filters as main query
+          if (search) {
+            batchQuery.or(`name.ilike.%${search}%,email.ilike.%${search}%,address.ilike.%${search}%`);
+          }
+          if (geocodedOnly) {
+            batchQuery.not('latitude', 'is', null).not('longitude', 'is', null);
+          }
+
+          batchQuery.range(batchFrom, batchTo);
+
+          const { data: batchCustomers, error: batchError, count: batchCount } = await batchQuery;
+
+          if (batchError) {
+            console.error('[CUSTOMERS API] Batch error:', batchError);
+            throw batchError;
+          }
+
+          if (currentPage === 0) {
+            totalCount = batchCount || 0;
+          }
+
+          if (batchCustomers && batchCustomers.length > 0) {
+            allCustomers.push(...batchCustomers);
+            currentPage++;
+            hasMore = batchCustomers.length === batchSize; // Continue if we got a full batch
+          } else {
+            hasMore = false;
+          }
+        }
+
+        customers = allCustomers;
+        error = null;
+        count = totalCount;
+      } else {
+        // Normal pagination for smaller limits
+        const from = page * limit;
+        const to = from + limit - 1;
+        query = query.range(from, to);
+
+        const result = await query;
+        customers = result.data;
+        error = result.error;
+        count = result.count;
+      }
 
       if (error) {
         console.error('[CUSTOMERS API] Supabase error:', error);
@@ -171,11 +220,12 @@ export async function GET(request: NextRequest) {
             }
           }
         });
-      }
+        }
 
-      console.log('[CUSTOMERS API] No data in Supabase, falling back to Ploome...');
-    } catch (storageError) {
-      console.error('[CUSTOMERS API] Supabase error, falling back to Ploome:', storageError);
+        console.log('[CUSTOMERS API] No data in Supabase, falling back to Ploome...');
+      } catch (storageError) {
+        console.error('[CUSTOMERS API] Supabase error, falling back to Ploome:', storageError);
+      }
     }
 
     // Fall back to Ploome API
@@ -221,7 +271,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const ploomeData = await ploomeResponse.json();
+    const ploomeData = await ploomeResponse.json() as PloomeResponse;
     const contacts = ploomeData.value || [];
 
     // Transform Ploome data
@@ -257,8 +307,8 @@ export async function GET(request: NextRequest) {
         cep: cep,
         city: city,
         state: '',
-        latitude: null,
-        longitude: null,
+        latitude: undefined,
+        longitude: undefined,
         ploome_person_id: contact.Id.toString(),
         created_date: contact.CreateDate,
         last_interaction: contact.LastInteractionDate
@@ -279,7 +329,7 @@ export async function GET(request: NextRequest) {
     // Apply geocoding filter
     if (geocodedOnly) {
       filteredCustomers = filteredCustomers.filter(customer =>
-        customer.latitude !== null && customer.longitude !== null
+        customer.latitude !== undefined && customer.longitude !== undefined
       );
     }
 
@@ -310,13 +360,13 @@ export async function GET(request: NextRequest) {
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('💥 Customers API error:', error);
     return NextResponse.json(
       {
         success: false,
         message: 'Server error in customers API',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString()
       },
       { status: 500 }
