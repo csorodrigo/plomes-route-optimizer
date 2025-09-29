@@ -126,6 +126,9 @@ export async function GET(request: NextRequest) {
       // Apply pagination - but if limit is high, get all customers in batches
       const allCustomers = [];
       let totalCount = 0;
+      let customers;
+      let error;
+      let count;
 
       if (limit >= 5000) {
         // Get all customers in batches to bypass Supabase 1000-row limit
@@ -171,9 +174,9 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        const customers = allCustomers;
-        const error = null;
-        const count = totalCount;
+        customers = allCustomers;
+        error = null;
+        count = totalCount;
       } else {
         // Normal pagination for smaller limits
         const from = page * limit;
@@ -181,9 +184,9 @@ export async function GET(request: NextRequest) {
         query = query.range(from, to);
 
         const result = await query;
-        const customers = result.data;
-        const error = result.error;
-        const count = result.count;
+        customers = result.data;
+        error = result.error;
+        count = result.count;
       }
 
       if (error) {
