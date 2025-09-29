@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Ploomes - Sistema de Rota CEP</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .card h3 {
+            margin-top: 0;
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+        }
+        .card p {
+            margin-bottom: 15px;
+            opacity: 0.9;
+        }
+        .btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        .status {
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .feature-list li:before {
+            content: "✓ ";
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .url-info {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .url-info code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Dashboard Ploomes</h1>
+            <p>Sistema de Otimização de Rotas por CEP</p>
+        </div>
+        
+        <div class="url-info">
+            <h3>🌐 Servidor Frontend Configurado</h3>
+            <p>Acesse o sistema através de: <code id="current-url">http://localhost:8000</code></p>
+            <small>Sistema servindo arquivos estáticos corretamente</small>
+        </div>
+        
+        <div class="status">
+            <h3>✅ Servidor Frontend Ativo</h3>
+            <p>Sistema configurado e funcionando - Dashboard Ploomes pronto para uso!</p>
+        </div>
+        
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>📍 Mapa de Clientes</h3>
+                <p>Visualize todos os seus clientes no mapa com geolocalização automática por CEP.</p>
+                <a href="#" class="btn" onclick="showFeature('mapa')">Abrir Mapa</a>
+            </div>
+            
+            <div class="card">
+                <h3>🛣️ Otimização de Rotas</h3>
+                <p>Calcule as melhores rotas entre clientes para maximizar eficiência.</p>
+                <a href="#" class="btn" onclick="showFeature('rotas')">Otimizar Rotas</a>
+            </div>
+            
+            <div class="card">
+                <h3>👥 Gestão de Clientes</h3>
+                <p>Integração completa com Ploomes CRM para sincronização de dados.</p>
+                <a href="#" class="btn" onclick="showFeature('clientes')">Ver Clientes</a>
+            </div>
+            
+            <div class="card">
+                <h3>📊 Relatórios</h3>
+                <p>Análise de performance e relatórios detalhados de rotas.</p>
+                <a href="#" class="btn" onclick="showFeature('relatorios')">Ver Relatórios</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>🔧 Funcionalidades Disponíveis</h3>
+            <ul class="feature-list">
+                <li>Sincronização automática com Ploomes CRM</li>
+                <li>Geolocalização por CEP usando API ViaCEP</li>
+                <li>Otimização de rotas com Google Routes API</li>
+                <li>Interface responsiva e moderna</li>
+                <li>Dashboard em tempo real</li>
+                <li>Filtros avançados por região e tags</li>
+            </ul>
+        </div>
+        
+        <div class="card">
+            <h3>📡 Status da API</h3>
+            <p id="api-status">Backend API não configurado ainda</p>
+            <button class="btn" onclick="showBackendInfo()">Informações do Backend</button>
+        </div>
+        
+        <div class="card">
+            <h3>🎯 Estrutura do Projeto</h3>
+            <p><strong>Frontend:</strong> /Users/rodrigooliveira/Documents/workspace/Claude-code/PLOMES-ROTA-CEP/frontend/</p>
+            <p><strong>Dashboard Components:</strong> /Users/rodrigooliveira/Documents/workspace/Claude-code/PLOMES-ROTA-CEP/src/dashboard/</p>
+            <p><strong>Backend:</strong> /Users/rodrigooliveira/Documents/workspace/Claude-code/PLOMES-ROTA-CEP/backend/</p>
+        </div>
+    </div>
+    
+    <script>
+        // Update current URL
+        document.getElementById('current-url').textContent = window.location.href;
+        
+        function showFeature(feature) {
+            alert(`Funcionalidade "${feature}" será implementada nos componentes React do dashboard.\n\nArquivos disponíveis em:\n/src/dashboard/components/\n/src/dashboard/pages/`);
+        }
+        
+        function showBackendInfo() {
+            alert(`Para conectar com o backend:\n\n1. Inicie o servidor backend: node backend/server.js\n2. Configure o proxy no package.json do frontend\n3. Verifique as APIs em backend/routes/\n\nO backend deve rodar normalmente na porta 3001.`);
+        }
+        
+        // Show load time
+        window.addEventListener('load', function() {
+            console.log('Dashboard Ploomes carregado com sucesso!');
+            console.log('Estrutura de arquivos do dashboard disponível em src/dashboard/');
+        });
+    </script>
+</body>
+</html>

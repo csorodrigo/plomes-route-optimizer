@@ -78,8 +78,52 @@ class PDFExportService {
 
       const filename = `Rota_CIA_Maquinas_${year}-${month}-${day}_${hours}-${minutes}.pdf`;
 
-      // Save the PDF
-      pdf.save(filename);
+      // Save the PDF with forced filename handling
+      try {
+        // Generate blob with proper MIME type
+        const pdfBlob = new Blob([pdf.output('arraybuffer')], {
+          type: 'application/pdf'
+        });
+
+        const url = URL.createObjectURL(pdfBlob);
+
+        // Create download link with forced filename
+        const downloadLink = document.createElement('a');
+        downloadLink.href = url;
+        downloadLink.download = filename;
+        downloadLink.style.display = 'none';
+        downloadLink.target = '_blank';
+
+        // Add to DOM, trigger click, and clean up
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+
+        // Clean up object URL after a short delay
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 1000);
+
+        console.log(`PDF successfully downloaded with filename: ${filename}`);
+      } catch (downloadError) {
+        console.error('Enhanced PDF download failed, trying fallback:', downloadError);
+
+        try {
+          // Fallback to standard jsPDF save
+          pdf.save(filename);
+          console.log(`PDF fallback saved with filename: ${filename}`);
+        } catch (fallbackError) {
+          console.error('All PDF save methods failed:', fallbackError);
+
+          // Last resort: open PDF in new tab
+          const pdfDataUri = pdf.output('dataurlnewwindow');
+          const newWindow = window.open('', '_blank');
+          if (newWindow) {
+            newWindow.document.write(`<iframe src="${pdfDataUri}" style="width:100%;height:100%"></iframe>`);
+            newWindow.document.title = filename;
+          }
+        }
+      }
 
       return {
         success: true,

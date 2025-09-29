@@ -49,3 +49,5 @@ Sempre que aparecer erro de conexão, execute automaticamente:
 ```
 
 Este é um problema conhecido e recorrente do projeto que deve ser resolvido automaticamente.
+- Use Tailwind CSS v3.3.7 para este projeto
+- USE React 18.2.0 pra esse projeto.
