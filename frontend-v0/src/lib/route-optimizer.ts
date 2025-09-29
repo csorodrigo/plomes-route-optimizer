@@ -1,16 +1,6 @@
 import polyline from 'polyline';
 import axios from 'axios';
 
-// Type declaration for haversine-distance
-declare module 'haversine-distance' {
-  interface Point {
-    latitude: number;
-    longitude: number;
-  }
-  function haversineDistance(a: Point, b: Point): number;
-  export default haversineDistance;
-}
-
 import haversineDistance from 'haversine-distance';
 
 interface Waypoint {
