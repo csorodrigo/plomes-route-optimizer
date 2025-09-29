@@ -619,11 +619,14 @@ class PDFExportService {
    * Format time in minutes to human readable format
    */
   private formatTime(minutes: number): string {
-    if (minutes < 60) {
-      return `${minutes}min`;
+    // Round to nearest integer to avoid decimal places
+    const roundedMinutes = Math.round(minutes);
+
+    if (roundedMinutes < 60) {
+      return `${roundedMinutes}min`;
     }
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const hours = Math.floor(roundedMinutes / 60);
+    const mins = roundedMinutes % 60;
     return `${hours}h ${mins}min`;
   }
 
