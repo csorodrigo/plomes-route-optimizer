@@ -8,7 +8,7 @@ declare module 'haversine-distance' {
     longitude: number;
   }
   function haversineDistance(a: Point, b: Point): number;
-  export = haversineDistance;
+  export default haversineDistance;
 }
 
 import haversineDistance from 'haversine-distance';
