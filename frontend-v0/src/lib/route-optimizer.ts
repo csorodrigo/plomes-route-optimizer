@@ -29,7 +29,7 @@ interface RouteResult {
       start_location: { lat: number; lng: number };
       end_location: { lat: number; lng: number };
     }>;
-  };
+  } | null;
 }
 
 interface OptimizationOptions {
