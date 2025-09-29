@@ -15,35 +15,67 @@ export async function GET() {
     tests: {} as Record<string, unknown>
   };
 
-  // Test 1: Supabase Connection
+  // Test 1: Supabase Connection - Test both keys
   console.log('🧪 Testing Supabase connection...');
-  try {
-    if (hasSupabase()) {
-      const supabase = getSupabaseClient();
-      if (supabase) {
-        // Try a simple query
-        const { data, error } = await supabase
-          .from('customers')
-          .select('count(*)', { count: 'exact', head: true });
+  console.log('🔧 Supabase URL:', env.SUPABASE_URL ? `${env.SUPABASE_URL.substring(0, 20)}...` : 'MISSING');
+  console.log('🔧 Service Key:', env.SUPABASE_SERVICE_ROLE_KEY ? `${env.SUPABASE_SERVICE_ROLE_KEY.substring(0, 20)}...` : 'MISSING');
+  console.log('🔧 Anon Key:', env.SUPABASE_ANON_KEY ? `${env.SUPABASE_ANON_KEY.substring(0, 20)}...` : 'MISSING');
 
-        if (error) {
-          results.tests.supabase = {
-            status: 'error',
-            error: error.message,
-            details: 'Query failed'
-          };
-        } else {
-          results.tests.supabase = {
-            status: 'success',
-            count: data || 0,
-            details: 'Connection successful'
-          };
+  try {
+    if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
+      // Import Supabase client directly
+      const { createClient } = await import('@supabase/supabase-js');
+
+      // Test with SERVICE_ROLE_KEY first
+      console.log('🔍 Testing with SERVICE_ROLE_KEY...');
+      const supabaseService = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+
+      const { data: serviceData, error: serviceError } = await supabaseService
+        .from('customers')
+        .select('count(*)', { count: 'exact', head: true });
+
+      if (serviceError) {
+        console.log('❌ Service key failed:', serviceError);
+
+        // Try with ANON_KEY
+        if (env.SUPABASE_ANON_KEY) {
+          console.log('🔍 Trying with ANON_KEY...');
+          const supabaseAnon = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+
+          const { data: anonData, error: anonError } = await supabaseAnon
+            .from('customers')
+            .select('count(*)', { count: 'exact', head: true });
+
+          if (anonError) {
+            console.log('❌ Anon key also failed:', anonError);
+          } else {
+            console.log('✅ Anon key worked!', anonData);
+          }
         }
       } else {
+        console.log('✅ Service key worked!', serviceData);
+      }
+
+      const { data, error } = serviceData && !serviceError ?
+        { data: serviceData, error: serviceError } :
+        { data: null, error: serviceError || new Error('Both keys failed') };
+
+      if (error) {
         results.tests.supabase = {
           status: 'error',
-          error: 'Failed to create Supabase client',
-          details: 'Client initialization failed'
+          error: error.message || 'Unknown Supabase error',
+          code: error.code || 'NO_CODE',
+          hint: error.hint || 'No hint available',
+          details: error.details || 'Query failed',
+          rawError: JSON.stringify(error, null, 2),
+          errorType: typeof error,
+          errorKeys: Object.keys(error || {})
+        };
+      } else {
+        results.tests.supabase = {
+          status: 'success',
+          count: data || 0,
+          details: 'Connection successful'
         };
       }
     } else {
@@ -57,7 +89,10 @@ export async function GET() {
     results.tests.supabase = {
       status: 'error',
       error: supabaseError instanceof Error ? supabaseError.message : 'Unknown error',
-      details: 'Exception during test'
+      details: 'Exception during test',
+      exceptionType: typeof supabaseError,
+      exceptionString: String(supabaseError),
+      stackTrace: supabaseError instanceof Error ? supabaseError.stack : 'No stack trace'
     };
   }
 

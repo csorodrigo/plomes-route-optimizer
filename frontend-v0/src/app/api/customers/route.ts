@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const page = parseInt(searchParams.get('page') || '0');
-    const limit = parseInt(searchParams.get('limit') || '25');
+    const limit = parseInt(searchParams.get('limit') || '5000');
     const geocodedOnly = searchParams.get('geocoded_only') === 'true';
 
     // Try to get customers from Supabase first
