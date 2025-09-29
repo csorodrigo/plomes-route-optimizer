@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Apply pagination - but if limit is high, get all customers in batches
-      let allCustomers = [];
+      const allCustomers = [];
       let totalCount = 0;
 
       if (limit >= 5000) {
@@ -171,9 +171,9 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        var customers = allCustomers;
-        var error = null;
-        var count = totalCount;
+        const customers = allCustomers;
+        const error = null;
+        const count = totalCount;
       } else {
         // Normal pagination for smaller limits
         const from = page * limit;
@@ -181,9 +181,9 @@ export async function GET(request: NextRequest) {
         query = query.range(from, to);
 
         const result = await query;
-        var customers = result.data;
-        var error = result.error;
-        var count = result.count;
+        const customers = result.data;
+        const error = result.error;
+        const count = result.count;
       }
 
       if (error) {
