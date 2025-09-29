@@ -4,14 +4,14 @@ on:
   push:
     branches: [ main, develop ]
     paths:
-      - 'frontend/src/**'
+      - 'frontend-v0/src/**'
       - 'backend/**'
       - '*.json'
       - '.github/workflows/**'
   pull_request:
     branches: [ main, develop ]
     paths:
-      - 'frontend/src/**'
+      - 'frontend-v0/src/**'
       - 'backend/**'
       - '*.json'
       - '.github/workflows/**'
@@ -39,9 +39,9 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
-      - name: Install frontend dependencies
+      - name: Install frontend-v0 dependencies
         run: |
-          cd frontend
+          cd frontend-v0
           npm ci
 
       - name: Run unit tests
@@ -76,9 +76,9 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
-      - name: Install frontend dependencies
+      - name: Install frontend-v0 dependencies
         run: |
-          cd frontend
+          cd frontend-v0
           npm ci
 
       - name: Run integration tests
@@ -131,9 +131,9 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
-      - name: Install frontend dependencies
+      - name: Install frontend-v0 dependencies
         run: |
-          cd frontend
+          cd frontend-v0
           npm ci
 
       - name: Create test environment file
@@ -230,7 +230,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          cd frontend && npm ci
+          cd frontend-v0 && npm ci
 
       - name: Generate coverage report
         run: npm run test:coverage
@@ -306,19 +306,19 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          cd frontend && npm ci
+          cd frontend-v0 && npm ci
 
       - name: Run ESLint on polyline-related files
         run: |
-          npx eslint frontend/src/components/RouteOptimizer.jsx \
-                      frontend/src/components/__tests__/RouteOptimizer*.test.js \
-                      frontend/src/__tests__/utils/polylineTestFactory.js \
+          npx eslint frontend-v0/src/components/RouteOptimizer.jsx \
+                      frontend-v0/src/components/__tests__/RouteOptimizer*.test.js \
+                      frontend-v0/src/__tests__/utils/polylineTestFactory.js \
                       --format=github
         continue-on-error: true
 
       - name: Check bundle size impact
         run: |
-          cd frontend
+          cd frontend-v0
           npm run build
 
           # Get current bundle size
@@ -384,11 +384,11 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          cd frontend && npm ci
+          cd frontend-v0 && npm ci
 
       - name: Build production bundle
         run: |
-          cd frontend
+          cd frontend-v0
           npm run build
         env:
           NODE_ENV: production
@@ -401,7 +401,7 @@ jobs:
             const path = require('path');
 
             // Check if RouteOptimizer component exists in build
-            const buildDir = './frontend/build/static/js/';
+            const buildDir = './frontend-v0/build/static/js/';
             const jsFiles = fs.readdirSync(buildDir).filter(f => f.endsWith('.js'));
 
             let polylineFound = false;
