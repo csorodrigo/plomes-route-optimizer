@@ -13,8 +13,8 @@ const FALLBACK_USERS = [
     id: 1,
     email: "gustavo.canuto@ciaramaquinas.com.br",
     name: "Gustavo Canuto",
-    // bcrypt hash for "password"
-    password_hash: "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi"
+    // bcrypt hash for "ciara123@"
+    password_hash: "$2b$10$2shIPK5DUiVUeF4y0y8o6ezsKeY7FZTClbdCv16/59xmO1nMn6Bve"
   },
   {
     id: 2,
