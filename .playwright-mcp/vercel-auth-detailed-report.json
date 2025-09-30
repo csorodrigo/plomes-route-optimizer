@@ -1,0 +1,194 @@
+{
+  "timestamp": "2025-09-29T17:30:09.791Z",
+  "baseUrl": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app",
+  "testCredentials": {
+    "email": "gustavo.canuto@ciaramaquinas.com.br",
+    "passwordProvided": true
+  },
+  "testResults": {
+    "pageLoad": "COMPLETED",
+    "loginFormFound": "NEEDS_VERIFICATION",
+    "authenticationAttempt": "COMPLETED",
+    "sessionPersistence": "NEEDS_VERIFICATION"
+  },
+  "apiAnalysis": {
+    "authCalls": [
+      {
+        "url": "https://vercel.com/login?next=%2Fsso-api%3Furl%3Dhttps%253A%252F%252Fplomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app%252F%26nonce%3Da6de227640ece125a76da4907a0c9056c7caf49818dcd72579fd1d2235168fec",
+        "status": 200,
+        "ok": true,
+        "method": "GET",
+        "timestamp": "2025-09-29T17:29:56.506Z"
+      },
+      {
+        "url": "https://vercel.com/login?next=%2Fsso-api%3Furl%3Dhttps%253A%252F%252Fplomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app%252F%26nonce%3Da6de227640ece125a76da4907a0c9056c7caf49818dcd72579fd1d2235168fec",
+        "status": 200,
+        "ok": true,
+        "method": "GET",
+        "timestamp": "2025-09-29T17:30:02.679Z"
+      },
+      {
+        "url": "https://vercel.com/_stream/external/hexagon-analytics.com/images/46099.gif?bk=e0fb7b5a33&tm=144&r=639139519&v=117&cs=UTF-8&h=vercel.com&l=pt-BR&S=cdee8788c3a8b49b06a7221e4b74c4a7&uu=b6f50a47a54f05417f1699802fd019a&t=Login%20%E2%80%93%20Vercel&u=https%3A%2F%2Fvercel.com%2Flogin%3Fnext%3D%252Fsso-api%253Furl%253Dhttps%25253A%25252F%25252Fplomes-route-system-mmh074vib-csorodri&rf=https%3A%2F%2Fplomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app%2F&ua=Mozilla%2F5.0%20(Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36&nm=2&mh=63196a00446a1e285d1992cfe444aa55&np=5&ph=332b72bdb211e34e6e3c24f88d7c393b&sh=1080&sw=1920&cd=24&p=MacIntel&to=180&d=0&ce=true&tp=0&ol=true&pr=Gecko&ps=20030107&vd=Google%20Inc.&hc=10&je=false&ss=true&ls=true&in=true&db=false&tl=false&tr=false&ts=false&tb=false&ab=false&cf=f0fbe7949d2680f052faacc72c1aeadb&sri=0&fph=c0f48806e2dc75d6fcbd91de7957bb6f&fsh=1080&fsw=1920&fcd=24&fp=MacIntel&ftp=0&fhc=10&fss=true&fls=true&fin=true&fvch=5122442d4d50ec5bd84c250b3abea51c&fad=124.04348155876505&fdm=8&fvf=chrome&fcg=srgb&ffc=false&fm=0&fc=0&frm=false&fhdr=false&fmf=1b4539be02333d14ce0a07c372e6a7d4&fa=127&fte=false&fts=false&fce=true&fpdf=true&fl=7114e4a6610bea1aee6083d3a5fe2d8e&ft=America/Fortaleza&pf=143&pfe=35&z=z",
+        "status": 200,
+        "ok": true,
+        "method": "GET",
+        "timestamp": "2025-09-29T17:30:03.637Z"
+      }
+    ],
+    "dataCalls": [],
+    "totalCalls": 251
+  },
+  "errors": {
+    "consoleErrors": [
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 ()",
+        "timestamp": "2025-09-29T17:29:55.662Z"
+      },
+      {
+        "type": "error",
+        "text": "[GSI_LOGGER]: FedCM get() rejects with TypeError: Failed to execute 'get' on 'CredentialsContainer': Failed to read the 'identity' property from 'CredentialRequestOptions': Failed to read the 'mode' property from 'IdentityCredentialRequestOptions': The provided value 'widget' is not a valid enum value of type IdentityCredentialRequestOptionsMode.",
+        "timestamp": "2025-09-29T17:29:57.223Z"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 403 ()",
+        "timestamp": "2025-09-29T17:29:57.434Z"
+      },
+      {
+        "type": "error",
+        "text": "[GSI_LOGGER]: FedCM get() rejects with TypeError: Failed to execute 'get' on 'CredentialsContainer': Failed to read the 'identity' property from 'CredentialRequestOptions': Failed to read the 'mode' property from 'IdentityCredentialRequestOptions': The provided value 'widget' is not a valid enum value of type IdentityCredentialRequestOptionsMode.",
+        "timestamp": "2025-09-29T17:30:02.891Z"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 403 ()",
+        "timestamp": "2025-09-29T17:30:03.118Z"
+      }
+    ],
+    "networkErrors": [
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:55.790Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:55.845Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:55.895Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:55.951Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:56.022Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:56.075Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:56.130Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:56.179Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:56.239Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:56.291Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:56.348Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:56.406Z"
+      },
+      {
+        "url": "https://plomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app/.well-known/vercel-user-meta",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:56.462Z"
+      },
+      {
+        "url": "https://vercel.com/signup?next=%2Fsso-api%3Furl%3Dhttps%253A%252F%252Fplomes-route-system-mmh074vib-csorodrigo-2569s-projects.vercel.app%252F%26nonce%3Da6de227640ece125a76da4907a0c9056c7caf49818dcd72579fd1d2235168fec&_rsc=ho7rx",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:29:57.745Z"
+      },
+      {
+        "url": "https://vercel.com/hfi/vitals",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:30:02.686Z"
+      },
+      {
+        "url": "https://vercel.com/hfi/vitals",
+        "failure": {
+          "errorText": "net::ERR_ABORTED"
+        },
+        "timestamp": "2025-09-29T17:30:02.686Z"
+      }
+    ]
+  },
+  "diagnostics": {
+    "environmentVariables": {
+      "supabaseDetected": false,
+      "authEndpointsFound": true
+    },
+    "possibleIssues": [
+      "Console errors detected - check browser console",
+      "Network errors detected - check API connectivity"
+    ]
+  }
+}
