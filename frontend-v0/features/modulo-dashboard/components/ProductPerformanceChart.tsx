@@ -184,7 +184,7 @@ export function ProductPerformanceChart() {
             />
             <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
-              {topProducts.map((_, index) => (
+              {topProducts.map((_item: unknown, index: number) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Bar>
