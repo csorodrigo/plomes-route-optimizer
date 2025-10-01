@@ -1,29 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { createClient } from '@supabase/supabase-js';
+import { env } from "@/lib/env.server";
 
 interface LoginRequestBody {
   email: string;
   password: string;
 }
-
-// Hardcoded user data for fallback authentication
-const FALLBACK_USERS = [
-  {
-    id: 1,
-    email: "gustavo.canuto@ciaramaquinas.com.br",
-    name: "Gustavo Canuto",
-    // bcrypt hash for "ciara123@"
-    password_hash: "$2b$10$2shIPK5DUiVUeF4y0y8o6ezsKeY7FZTClbdCv16/59xmO1nMn6Bve"
-  },
-  {
-    id: 2,
-    email: "test@test.com",
-    name: "Test User",
-    // bcrypt hash for "123456"
-    password_hash: "$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
-  }
-];
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,15 +24,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🔐 Fallback login attempt for: ${email}`);
-    console.log(`🔐 Available users:`, FALLBACK_USERS.map(u => u.email));
+    console.log(`🔐 Login attempt for: ${email}`);
 
-    // Find user in fallback data
-    const user = FALLBACK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
+    // Query user from Supabase database
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
 
-    if (!user) {
-      console.log(`❌ Fallback user not found: ${email}`);
-      console.log(`❌ Available emails:`, FALLBACK_USERS.map(u => u.email));
+    const { data: user, error: dbError } = await supabase
+      .from('users')
+      .select('id, email, name, password_hash, role')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (dbError || !user) {
+      console.log(`❌ User not found: ${email}`, dbError);
       return NextResponse.json(
         {
           success: false,
@@ -59,27 +47,14 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`✅ User found: ${user.email}`);
-    console.log(`🔐 Testing password against hash: ${user.password_hash}`);
+    console.log(`🔐 Verifying password...`);
 
-    // Verify password with multiple methods for serverless compatibility
-    let validPassword = false;
-
-    try {
-      // Primary: bcrypt verification
-      validPassword = await bcrypt.compare(password, user.password_hash);
-      console.log(`🔐 bcrypt validation result: ${validPassword}`);
-    } catch (bcryptError) {
-      console.log(`⚠️ bcrypt error in serverless:`, bcryptError);
-    }
-
-    // Method 2: Test known working hash manually (for debugging)
-    if (!validPassword && email === "gustavo.canuto@ciaramaquinas.com.br" && password === "ciara123@") {
-      console.log(`🔐 Manual override for known credentials`);
-      validPassword = true;
-    }
+    // Verify password using bcrypt
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+    console.log(`🔐 Password validation result: ${validPassword}`);
 
     if (!validPassword) {
-      console.log(`❌ All authentication methods failed for: ${email}`);
+      console.log(`❌ Password validation failed for: ${email}`);
       return NextResponse.json(
         {
           success: false,
