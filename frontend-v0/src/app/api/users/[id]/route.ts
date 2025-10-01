@@ -8,9 +8,10 @@ import bcrypt from 'bcryptjs';
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const userId = params.id;
     console.log(`👥 Users API - UPDATE user ${userId}`);
 
@@ -68,9 +69,10 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const userId = params.id;
     console.log(`👥 Users API - DELETE user ${userId}`);
 
