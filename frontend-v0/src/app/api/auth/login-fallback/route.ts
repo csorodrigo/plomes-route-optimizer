@@ -64,12 +64,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate JWT token
+    // Generate JWT token with user details
     const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key-for-development-only";
     const token = jwt.sign(
       {
         userId: user.id,
-        email: user.email
+        email: user.email,
+        name: user.name
       },
       JWT_SECRET,
       { expiresIn: '7d' }
