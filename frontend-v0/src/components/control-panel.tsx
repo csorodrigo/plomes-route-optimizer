@@ -89,12 +89,12 @@ export function ControlPanel({
             value={[distanceFilter]}
             onValueChange={(value) => setDistanceFilter(value[0])}
             max={50}
-            min={5}
-            step={5}
+            min={1}
+            step={1}
             className="w-full"
           />
           <div className="flex justify-between text-xs text-slate-500 mt-2">
-            <span>5km</span>
+            <span>1km</span>
             <span className="font-medium text-slate-700">{distanceFilter}km</span>
             <span>50km</span>
           </div>

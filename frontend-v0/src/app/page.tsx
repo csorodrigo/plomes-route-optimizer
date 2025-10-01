@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import polyline from "polyline";
 
 import dynamic from "next/dynamic";
@@ -493,6 +494,12 @@ export default function RouteOptimizerPage() {
                   <p className="font-medium text-slate-900">{auth.user?.name}</p>
                   <p className="text-sm text-slate-500">{auth.user?.email}</p>
                 </div>
+                <Link
+                  href="/users"
+                  className="w-full block px-4 py-2 text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Gerenciar Usuários
+                </Link>
                 <button
                   onClick={auth.logout}
                   className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors"
