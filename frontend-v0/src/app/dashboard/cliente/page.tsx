@@ -236,11 +236,15 @@ export default function CustomerDashboard() {
     }
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | undefined | null) => {
+    // Ensure we always have a valid number, defaulting to 0 if invalid
+    const numericValue = Number(value) || 0;
+    const safeValue = isNaN(numericValue) || !isFinite(numericValue) ? 0 : numericValue;
+
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    }).format(value);
+    }).format(safeValue);
   };
 
   const formatDate = (dateString: string) => {
