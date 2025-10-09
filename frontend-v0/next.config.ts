@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Fix for workspace root detection - disabled for Vercel deployment
-  // outputFileTracingRoot: "../",
-
   // Enable experimental features
   experimental: {
     // Enable serverActions for form handling
@@ -11,6 +8,10 @@ const nextConfig: NextConfig = {
       allowedOrigins: ["localhost:3003", "*.vercel.app"]
     }
   },
+
+  // Build optimizations
+  compress: true,
+  poweredByHeader: false,
 
   // Image optimization configuration
   images: {
