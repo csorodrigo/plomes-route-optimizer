@@ -1,0 +1,92 @@
+[
+  {
+    "Id": 400868361,
+    "ContactId": 401805277,
+    "Amount": 0,
+    "LastUpdateDate": "2023-11-23T15:33:46.4-03:00",
+    "Title": "FARMACE - Unidade Trocadora de Calor - SAT.075-AR (DPI-59952A)",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873645,
+    "ContactId": 401245367,
+    "Amount": 1768.21,
+    "LastUpdateDate": "2023-07-06T14:21:33.927-03:00",
+    "Title": "INGERSOLL - Comissão Novembro/2022 (Estabelecimento: 410)",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873648,
+    "ContactId": 401246090,
+    "Amount": 4000,
+    "LastUpdateDate": "2023-07-06T14:21:35.597-03:00",
+    "Title": "MOINHO SANTA LÚCIA - Locação Compressor 30kw TAG#136 - Dezembro/2022",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873661,
+    "ContactId": 401245337,
+    "Amount": 14387.54,
+    "LastUpdateDate": "2023-07-06T14:21:37.3-03:00",
+    "Title": "GERDAU - KIT ADMISSÃO, CONECTOR E MANGUEIRA -  TAG 03 R90i  B0915I0005",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873662,
+    "ContactId": 401246107,
+    "Amount": 21600,
+    "LastUpdateDate": "2025-04-08T17:24:44.353-03:00",
+    "Title": "3 Corações - Contrato de Serviço CSC (R75, TD570)",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873663,
+    "ContactId": 401245255,
+    "Amount": 17660.6,
+    "LastUpdateDate": "2024-03-22T11:40:04.03-03:00",
+    "Title": "HWR - CORRETIVA GV100 - 1423882/ 1423883",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873677,
+    "ContactId": 401245561,
+    "Amount": 4556.87,
+    "LastUpdateDate": "2023-07-03T12:46:32.36-03:00",
+    "Title": "INTERLANDIA CE - SRV 16k R90ix-B0419I0049 + 8k R90ix-B1220I0005 + Preventiva TD675-118427 2022",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873683,
+    "ContactId": 401246102,
+    "Amount": 49253.34,
+    "LastUpdateDate": "2023-07-06T14:21:41.427-03:00",
+    "Title": "TU - 40k R75i-2",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873717,
+    "ContactId": 401246614,
+    "Amount": 8550,
+    "LastUpdateDate": "2023-07-06T14:21:43.66-03:00",
+    "Title": "INGREDION - Locação 15kW + secador + Trafo (Dez/2022 e Jan/2023)",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873721,
+    "ContactId": 401246606,
+    "Amount": 20600,
+    "LastUpdateDate": "2023-07-06T14:21:45.567-03:00",
+    "Title": "INAPI - Rev 24k GA55 550218",
+    "StatusId": 2,
+    "Products": []
+  }
+]

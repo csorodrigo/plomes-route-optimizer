@@ -263,3 +263,146 @@ export interface CepRouteParams {
     cep: string;
   }>;
 }
+
+// Dashboard API types
+export interface DashboardMetrics {
+  totalRevenue: number;
+  avgDealValue: number;
+  activeProducts: number;
+  totalCustomers: number;
+  topProducts: Array<{
+    productId: string;
+    productName: string;
+    revenue: number;
+    dealCount: number;
+  }>;
+  revenueByMonth: Record<string, number>;
+  conversionRate: number;
+}
+
+export interface CustomerSalesData {
+  customerId: string;
+  customerName: string;
+  totalRevenue: number;
+  dealCount: number;
+  avgDealSize: number;
+  lastSaleDate?: string;
+  status: 'active' | 'inactive';
+}
+
+export interface CustomerSalesResponse {
+  success: boolean;
+  data: CustomerSalesData[];
+  summary: {
+    totalCustomersWithSales: number;
+    activeCustomers: number;
+    totalRevenue: number;
+    totalDeals: number;
+    avgRevenuePerCustomer: number;
+  };
+  metadata: {
+    source: string;
+    timestamp: string;
+    filters: {
+      limit: number;
+      sortBy: string;
+    };
+  };
+}
+
+export interface ProductPerformance {
+  productId: string;
+  productName: string;
+  category?: string;
+  totalSold: number;
+  revenue: number;
+  dealCount: number;
+  avgDealSize: number;
+  uniqueCustomers: number;
+  growthRate?: number;
+  lastSaleDate?: string;
+}
+
+export interface ProductPerformanceResponse {
+  success: boolean;
+  data: ProductPerformance[];
+  summary: {
+    totalProducts: number;
+    totalRevenue: number;
+    totalUnitsSold: number;
+    avgRevenuePerProduct: number;
+    categoryBreakdown: Record<string, { count: number; revenue: number }>;
+  };
+  metadata: {
+    source: string;
+    timestamp: string;
+    filters: {
+      limit: number;
+      category: string | null;
+    };
+  };
+}
+
+export interface PricingHistoryRecord {
+  customerId: string;
+  customerName: string;
+  productId: string;
+  productName: string;
+  price: number;
+  validFrom: string;
+  validTo?: string;
+  minPriceEver: number;
+  maxPriceEver: number;
+  currentPrice: boolean;
+  warning?: string;
+}
+
+export interface PricingHistoryResponse {
+  success: boolean;
+  data: PricingHistoryRecord[];
+  summary: {
+    totalRecords: number;
+    uniqueCustomers: number;
+    priceRange: {
+      min: number;
+      max: number;
+      avg: number;
+      variance: number;
+      volatility: number;
+    };
+    customerSummary: Array<{
+      customerId: string;
+      customerName: string;
+      avgPrice: number;
+      minPrice: number;
+      maxPrice: number;
+      priceChanges: number;
+    }>;
+  };
+  metadata: {
+    source: string;
+    timestamp: string;
+    filters: {
+      productId: string;
+      customerId: string | null;
+    };
+  };
+}
+
+export interface DashboardMetricsResponse {
+  success: boolean;
+  data: DashboardMetrics;
+  metadata: {
+    source: string;
+    timestamp: string;
+    filters: {
+      startDate: string | null;
+      endDate: string | null;
+      statusId: string | null;
+    };
+    period: {
+      dealCount: number;
+      dataPoints: number;
+    };
+  };
+}

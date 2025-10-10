@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiService } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 
 interface LoginForm {
@@ -16,6 +16,7 @@ interface LoginForm {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { signIn, signUp } = useAuth();
   const [formData, setFormData] = useState<LoginForm>({
     email: "",
     password: "",
@@ -23,6 +24,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showSignUp, setShowSignUp] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -67,20 +69,19 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const data = await apiService.login(formData.email, formData.password);
+      const result = showSignUp
+        ? await signUp(formData.email, formData.password)
+        : await signIn(formData.email, formData.password);
 
-      if (data.success && data.token) {
-        // Store token in localStorage
-        localStorage.setItem("auth_token", data.token);
-
-        // Redirect to main page
-        router.push("/");
+      if (result.success) {
+        // Redirect to dashboard on successful login/signup
+        router.push("/dashboard");
       } else {
-        setError(data.message || "Falha no login");
+        setError(result.error || (showSignUp ? "Falha no registro" : "Falha no login"));
       }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Erro de conexão. Verifique sua internet e tente novamente.';
-      console.error("Login error:", err);
+      console.error("Auth error:", err);
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -103,10 +104,13 @@ export default function LoginPage() {
               />
             </div>
             <h1 className="text-2xl font-bold text-slate-900 mb-2">
-              Bem-vindo de volta
+              {showSignUp ? "Criar conta" : "Bem-vindo de volta"}
             </h1>
             <p className="text-slate-600">
-              Faça login para acessar seu painel de otimização de rotas
+              {showSignUp
+                ? "Crie sua conta para acessar o painel de otimização de rotas"
+                : "Faça login para acessar seu painel de otimização de rotas"
+              }
             </p>
           </div>
 
@@ -181,12 +185,31 @@ export default function LoginPage() {
               {loading ? (
                 <div className="flex items-center gap-2">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Entrando...
+                  {showSignUp ? "Criando conta..." : "Entrando..."}
                 </div>
               ) : (
-                "Entrar"
+                showSignUp ? "Criar conta" : "Entrar"
               )}
             </Button>
+
+            {/* Toggle between Sign In and Sign Up */}
+            <div className="text-center">
+              <button
+                type="button"
+                className="text-sm text-blue-600 hover:text-blue-700 underline"
+                onClick={() => {
+                  setShowSignUp(!showSignUp);
+                  setError(null);
+                  setFormData({ email: "", password: "" });
+                }}
+                disabled={loading}
+              >
+                {showSignUp
+                  ? "Já tem uma conta? Faça login"
+                  : "Não tem conta? Crie uma agora"
+                }
+              </button>
+            </div>
           </form>
 
           {/* Footer */}

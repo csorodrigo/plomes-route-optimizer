@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthGuard } from "@/components/AuthGuard";
 
 export const metadata: Metadata = {
   title: "PLOMES Route Optimizer",
@@ -15,7 +17,11 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className="antialiased">
-        {children}
+        <AuthProvider>
+          <AuthGuard>
+            {children}
+          </AuthGuard>
+        </AuthProvider>
       </body>
     </html>
   );

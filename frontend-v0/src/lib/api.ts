@@ -137,7 +137,7 @@ export interface LoginResponse {
 export const apiService = {
   login: (email: string, password: string) =>
     api
-      .post<LoginResponse>("/api/auth/login-fallback", {
+      .post<LoginResponse>("/api/auth/login", {
         email: email.toLowerCase(),
         password,
       })

@@ -30,6 +30,7 @@ interface TooltipProps {
       revenue: number;
       unitsSold: number;
       avgPrice: number;
+      dealCount: number;
     };
   }>;
 }
@@ -49,12 +50,12 @@ function CustomTooltip({ active, payload }: TooltipProps) {
             {new Intl.NumberFormat('pt-BR', {
               style: 'currency',
               currency: 'BRL',
-            }).format(data.revenue)}
+            }).format(isNaN(data.revenue) ? 0 : data.revenue)}
           </span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-slate-600">Unidades:</span>
-          <span className="font-medium text-slate-900">{data.unitsSold}</span>
+          <span className="font-medium text-slate-900">{isNaN(data.unitsSold) ? 0 : data.unitsSold}</span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-slate-600">Preço médio:</span>
@@ -62,8 +63,12 @@ function CustomTooltip({ active, payload }: TooltipProps) {
             {new Intl.NumberFormat('pt-BR', {
               style: 'currency',
               currency: 'BRL',
-            }).format(data.avgPrice)}
+            }).format(isNaN(data.avgPrice) ? 0 : data.avgPrice)}
           </span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-slate-600">Negócios:</span>
+          <span className="font-medium text-slate-900">{isNaN(data.dealCount) ? 0 : data.dealCount}</span>
         </div>
       </div>
     </div>
@@ -89,7 +94,16 @@ export function ProductPerformanceChart() {
   );
 
   const topProducts = products
-    .sort((a: { revenue: number }, b: { revenue: number }) => b.revenue - a.revenue)
+    .filter((p: any) => p.revenue > 0 && !isNaN(p.revenue)) // Only show products with actual sales and valid numbers
+    .map((p: any) => ({
+      ...p,
+      // Ensure no NaN values are displayed
+      revenue: isNaN(p.revenue) ? 0 : p.revenue,
+      unitsSold: isNaN(p.unitsSold) ? 0 : p.unitsSold,
+      avgPrice: isNaN(p.avgPrice) ? 0 : p.avgPrice,
+      dealCount: isNaN(p.dealCount) ? 0 : p.dealCount,
+    }))
+    .sort((a: any, b: any) => b.revenue - a.revenue)
     .slice(0, 10);
 
   if (isError) {

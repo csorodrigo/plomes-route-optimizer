@@ -103,6 +103,7 @@ interface CustomerStatistics {
 
 export default function CustomerDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [productSearchTerm, setProductSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -114,10 +115,11 @@ export default function CustomerDashboard() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [searchMode, setSearchMode] = useState<'customer' | 'product' | 'both'>('customer');
 
   const handleSearch = async () => {
-    if (!searchTerm.trim()) {
-      setError("Por favor, digite o nome ou código do cliente");
+    if (!searchTerm.trim() && !productSearchTerm.trim()) {
+      setError("Por favor, digite o nome do cliente ou do produto para buscar");
       return;
     }
 
@@ -131,44 +133,202 @@ export default function CustomerDashboard() {
     setStatistics(null);
 
     try {
-      const response = await fetch(`/api/dashboard/cliente/cached-search?query=${encodeURIComponent(searchTerm)}`);
+      // Determine search mode based on what fields are filled
+      const hasCustomer = searchTerm.trim().length > 0;
+      const hasProduct = productSearchTerm.trim().length > 0;
 
-      if (!response.ok) {
-        throw new Error("Cliente não encontrado");
-      }
-
-      const data = await response.json();
-
-      // Check if we got multiple customers (new structure) or single customer (old structure)
-      if (data.customers && Array.isArray(data.customers)) {
-        // New structure with multiple customers
-        setSearchResults(data.customers);
-        setShowResults(true);
-
-        if (data.customers.length === 1) {
-          // If only one customer found, automatically select it
-          handleCustomerSelect(data.customers[0]);
-        }
-      } else if (data.customer) {
-        // Old structure with single customer (fallback)
-        const customerData = {
-          customer: data.customer,
-          deals: data.deals,
-          summary: {
-            totalDeals: data.deals.length,
-            totalValue: data.deals.reduce((sum: number, deal: Deal) => sum + deal.deal_value, 0),
-            avgDealValue: data.deals.length > 0 ? data.deals.reduce((sum: number, deal: Deal) => sum + deal.deal_value, 0) / data.deals.length : 0
-          }
-        };
-        setSearchResults([customerData]);
-        handleCustomerSelect(customerData);
+      if (hasCustomer && hasProduct) {
+        // Combined search: Cliente + Produto específico
+        setSearchMode('both');
+        await handleCombinedSearch();
+      } else if (hasCustomer) {
+        // Customer-only search: Apenas Cliente
+        setSearchMode('customer');
+        await handleCustomerOnlySearch();
+      } else if (hasProduct) {
+        // Product-only search: Clientes que compraram o produto
+        setSearchMode('product');
+        await handleProductOnlySearch();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao buscar cliente");
+      setError(err instanceof Error ? err.message : "Erro na busca");
       setSearchResults([]);
     } finally {
       setLoading(false);
       setSearching(false);
+    }
+  };
+
+  // Busca apenas por cliente (comportamento original)
+  const handleCustomerOnlySearch = async () => {
+    const response = await fetch(`/api/dashboard/cliente/cached-search?query=${encodeURIComponent(searchTerm)}`);
+
+    if (!response.ok) {
+      throw new Error("Cliente não encontrado");
+    }
+
+    const data = await response.json();
+
+    // Check if we got multiple customers (new structure) or single customer (old structure)
+    if (data.customers && Array.isArray(data.customers)) {
+      // New structure with multiple customers
+      setSearchResults(data.customers);
+      setShowResults(true);
+
+      if (data.customers.length === 1) {
+        // If only one customer found, automatically select it
+        handleCustomerSelect(data.customers[0]);
+      }
+    } else if (data.customer) {
+      // Old structure with single customer (fallback)
+      const customerData = {
+        customer: data.customer,
+        deals: data.deals,
+        summary: {
+          totalDeals: data.deals.length,
+          totalValue: data.deals.reduce((sum: number, deal: Deal) => sum + deal.deal_value, 0),
+          avgDealValue: data.deals.length > 0 ? data.deals.reduce((sum: number, deal: Deal) => sum + deal.deal_value, 0) / data.deals.length : 0
+        }
+      };
+      setSearchResults([customerData]);
+      handleCustomerSelect(customerData);
+    }
+  };
+
+  // Busca clientes que compraram um produto específico
+  const handleProductOnlySearch = async () => {
+    const response = await fetch(`/api/dashboard/product-customers?product=${encodeURIComponent(productSearchTerm)}`);
+
+    if (!response.ok) {
+      throw new Error("Produto não encontrado");
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.data.length > 0) {
+      // Transform product customer data to match expected format
+      const productCustomers = data.data.map((customerData: any) => ({
+        customer: {
+          id: customerData.customerId,
+          name: `${customerData.customerName} (${customerData.totalPurchases} compras do produto)`,
+          email: '',
+          phone: '',
+          cnpj: ''
+        },
+        deals: customerData.deals.map((deal: any) => ({
+          deal_id: deal.dealId,
+          title: deal.dealTitle,
+          deal_value: deal.dealValue,
+          created_date: deal.dealDate,
+          close_date: deal.dealDate,
+          stage_name: 'Ganho',
+          products: [{
+            product_id: 'product_specific',
+            product_name: `Produto: ${productSearchTerm}`,
+            quantity: deal.quantity,
+            unit_price: deal.unitPrice,
+            total: deal.quantity * deal.unitPrice
+          }]
+        })),
+        summary: {
+          totalDeals: customerData.totalPurchases,
+          totalValue: customerData.totalValue,
+          avgDealValue: customerData.totalValue / customerData.totalPurchases
+        }
+      }));
+
+      setSearchResults(productCustomers);
+      setShowResults(true);
+
+      if (productCustomers.length === 1) {
+        handleCustomerSelect(productCustomers[0]);
+      }
+    } else {
+      throw new Error("Nenhum cliente encontrado que tenha comprado este produto");
+    }
+  };
+
+  // Busca combinada: produto específico de um cliente específico
+  const handleCombinedSearch = async () => {
+    // First, search for the customer
+    const customerResponse = await fetch(`/api/dashboard/cliente/cached-search?query=${encodeURIComponent(searchTerm)}`);
+
+    if (!customerResponse.ok) {
+      throw new Error("Cliente não encontrado");
+    }
+
+    const customerData = await customerResponse.json();
+    let customers = [];
+
+    if (customerData.customers && Array.isArray(customerData.customers)) {
+      customers = customerData.customers;
+    } else if (customerData.customer) {
+      customers = [{
+        customer: customerData.customer,
+        deals: customerData.deals,
+        summary: {
+          totalDeals: customerData.deals.length,
+          totalValue: customerData.deals.reduce((sum: number, deal: Deal) => sum + deal.deal_value, 0),
+          avgDealValue: customerData.deals.length > 0 ? customerData.deals.reduce((sum: number, deal: Deal) => sum + deal.deal_value, 0) / customerData.deals.length : 0
+        }
+      }];
+    }
+
+    if (customers.length === 0) {
+      throw new Error("Cliente não encontrado");
+    }
+
+    // Filter deals to only include those with the specified product
+    const productQueryLower = productSearchTerm.toLowerCase();
+    const filteredCustomers = customers.map((customer: any) => {
+      const filteredDeals = customer.deals.filter((deal: Deal) => {
+        if (!deal.products || deal.products.length === 0) return false;
+
+        return deal.products.some((product: Product) => {
+          const productName = (product.product_name || '').toLowerCase();
+          const productCode = (product.product_id || '').toLowerCase();
+
+          return productName.includes(productQueryLower) ||
+                 productCode.includes(productQueryLower) ||
+                 productQueryLower.includes(productName) ||
+                 productQueryLower.includes(productCode);
+        });
+      }).map((deal: Deal) => ({
+        ...deal,
+        // Filter products to only show matching ones
+        products: deal.products?.filter((product: Product) => {
+          const productName = (product.product_name || '').toLowerCase();
+          const productCode = (product.product_id || '').toLowerCase();
+
+          return productName.includes(productQueryLower) ||
+                 productCode.includes(productQueryLower) ||
+                 productQueryLower.includes(productName) ||
+                 productQueryLower.includes(productCode);
+        }) || []
+      }));
+
+      if (filteredDeals.length === 0) return null;
+
+      return {
+        ...customer,
+        deals: filteredDeals,
+        summary: {
+          totalDeals: filteredDeals.length,
+          totalValue: filteredDeals.reduce((sum: number, deal: Deal) => sum + deal.deal_value, 0),
+          avgDealValue: filteredDeals.length > 0 ? filteredDeals.reduce((sum: number, deal: Deal) => sum + deal.deal_value, 0) / filteredDeals.length : 0
+        }
+      };
+    }).filter(Boolean);
+
+    if (filteredCustomers.length === 0) {
+      throw new Error(`Cliente encontrado, mas não possui compras do produto "${productSearchTerm}"`);
+    }
+
+    setSearchResults(filteredCustomers);
+    setShowResults(true);
+
+    if (filteredCustomers.length === 1) {
+      handleCustomerSelect(filteredCustomers[0]);
     }
   };
 
@@ -280,39 +440,88 @@ export default function CustomerDashboard() {
           <h1 className="text-2xl font-bold">Dashboard do Cliente</h1>
         </div>
 
-        <div className="flex gap-4">
-          <div className="relative flex-1">
-            <Input
-              placeholder="Digite o nome ou código do cliente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="flex-1 pr-10"
-              disabled={loading}
-            />
-            {searching && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-              </div>
-            )}
+        {/* Campos de Busca */}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Campo de Busca por Cliente */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Buscar Cliente
+              </label>
+              <Input
+                placeholder="Digite o nome ou código do cliente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="pr-10"
+                disabled={loading}
+              />
+              {searching && searchMode !== 'product' && (
+                <div className="absolute right-3 top-9 transform">
+                  <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                </div>
+              )}
+            </div>
+
+            {/* Campo de Busca por Produto */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Buscar Produto
+              </label>
+              <Input
+                placeholder="Digite nome, descrição ou código do produto..."
+                value={productSearchTerm}
+                onChange={(e) => setProductSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="pr-10"
+                disabled={loading}
+              />
+              {searching && searchMode !== 'customer' && (
+                <div className="absolute right-3 top-9 transform">
+                  <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                </div>
+              )}
+            </div>
           </div>
-          <Button
-            onClick={handleSearch}
-            disabled={loading}
-            className="min-w-[120px]"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Buscando...
-              </>
-            ) : (
-              <>
-                <Search className="mr-2 h-4 w-4" />
-                Buscar
-              </>
-            )}
-          </Button>
+
+          {/* Botão de Busca */}
+          <div className="flex justify-center">
+            <Button
+              onClick={handleSearch}
+              disabled={loading}
+              className="min-w-[200px]"
+              size="lg"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Buscando...
+                </>
+              ) : (
+                <>
+                  <Search className="mr-2 h-4 w-4" />
+                  Buscar
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Indicador do Modo de Busca */}
+          {(searchTerm || productSearchTerm) && (
+            <div className="text-center text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+              <span className="font-medium">Modo de busca:</span> {' '}
+              <span className="font-semibold text-blue-700">
+                {searchTerm && productSearchTerm ? '🎯 Cliente + Produto específico' :
+                 searchTerm ? '👤 Apenas Cliente' :
+                 productSearchTerm ? '📦 Clientes que compraram o produto' : ''}
+              </span>
+              <div className="text-xs text-gray-500 mt-1">
+                {searchTerm && productSearchTerm ? 'Mostra apenas o produto específico deste cliente' :
+                 searchTerm ? 'Mostra todos os deals do cliente' :
+                 productSearchTerm ? 'Mostra últimos clientes que compraram este produto' : ''}
+              </div>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -327,7 +536,13 @@ export default function CustomerDashboard() {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="mb-4">
             <h2 className="text-xl font-semibold">Resultados da Busca</h2>
-            <p className="text-gray-600">Encontrados {searchResults.length} clientes para "{searchTerm}"</p>
+            <p className="text-gray-600">
+              Encontrados {searchResults.length} {' '}
+              {searchMode === 'product' ? 'clientes que compraram' :
+               searchMode === 'both' ? 'resultados para cliente' : 'clientes para'} {' '}
+              "{searchMode === 'product' ? productSearchTerm :
+                searchMode === 'both' ? `${searchTerm} (produto: ${productSearchTerm})` : searchTerm}"
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -348,11 +563,17 @@ export default function CustomerDashboard() {
 
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div className="bg-blue-50 p-2 rounded">
-                        <p className="text-xs text-gray-600">Pedidos</p>
+                        <p className="text-xs text-gray-600">
+                          {searchMode === 'product' ? 'Compras do Produto' :
+                           searchMode === 'both' ? 'Compras Filtradas' : 'Pedidos'}
+                        </p>
                         <p className="font-semibold text-blue-600">{result.summary.totalDeals}</p>
                       </div>
                       <div className="bg-green-50 p-2 rounded">
-                        <p className="text-xs text-gray-600">Valor Total</p>
+                        <p className="text-xs text-gray-600">
+                          {searchMode === 'product' ? 'Valor do Produto' :
+                           searchMode === 'both' ? 'Valor Filtrado' : 'Valor Total'}
+                        </p>
                         <p className="font-semibold text-green-600">{formatCurrency(result.summary.totalValue)}</p>
                       </div>
                     </div>
@@ -362,7 +583,10 @@ export default function CustomerDashboard() {
                     )}
 
                     <div className="flex items-center justify-between pt-2 border-t">
-                      <span className="text-xs text-gray-500">Clique para ver detalhes</span>
+                      <span className="text-xs text-gray-500">
+                        {searchMode === 'product' ? 'Ver histórico do produto' :
+                         searchMode === 'both' ? 'Ver produto específico' : 'Clique para ver detalhes'}
+                      </span>
                       <ChevronRight className="h-4 w-4 text-gray-400" />
                     </div>
                   </div>
@@ -376,6 +600,8 @@ export default function CustomerDashboard() {
               onClick={() => {
                 setShowResults(false);
                 setSearchTerm("");
+                setProductSearchTerm("");
+                setSearchMode('customer');
               }}
               className="text-blue-600 hover:text-blue-700 text-sm"
             >
@@ -416,10 +642,22 @@ export default function CustomerDashboard() {
                     }}
                     className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm border border-blue-200 px-3 py-1 rounded"
                   >
-                    ← Voltar aos resultados
+                    ← {searchMode === 'product' ? 'Voltar aos clientes' :
+                         searchMode === 'both' ? 'Voltar aos resultados filtrados' : 'Voltar aos resultados'}
                   </button>
                 )}
-                <h2 className="text-xl font-semibold">Informações do Cliente</h2>
+                <div>
+                  <h2 className="text-xl font-semibold">
+                    {searchMode === 'product' ? 'Cliente que Comprou o Produto' :
+                     searchMode === 'both' ? 'Produto Específico do Cliente' : 'Informações do Cliente'}
+                  </h2>
+                  {searchMode !== 'customer' && (
+                    <p className="text-sm text-gray-600">
+                      {searchMode === 'product' ? `Produto: "${productSearchTerm}"` :
+                       searchMode === 'both' ? `Filtrado por: "${productSearchTerm}"` : ''}
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -441,7 +679,10 @@ export default function CustomerDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2 text-blue-600">
-              <span className="text-sm font-medium">Ver histórico de pedidos</span>
+              <span className="text-sm font-medium">
+                {searchMode === 'product' ? 'Ver compras do produto' :
+                 searchMode === 'both' ? 'Ver produto específico' : 'Ver histórico de pedidos'}
+              </span>
               <ChevronRight className="h-5 w-5" />
             </div>
           </div>

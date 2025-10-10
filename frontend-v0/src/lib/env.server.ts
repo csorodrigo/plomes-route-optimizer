@@ -5,12 +5,12 @@
 
 export const serverEnv = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
-  PLOOME_API_KEY: process.env.PLOOME_API_KEY ?? "",
+  PLOOME_API_KEY: process.env.PLOOMES_API_KEY ?? process.env.PLOOME_API_KEY ?? "",
   PLOOME_BASE_URL: process.env.PLOOME_BASE_URL ?? "https://public-api2.ploomes.com",
   CLIENT_TAG_ID: process.env.CLIENT_TAG_ID ?? "40006184",
   JWT_SECRET: process.env.JWT_SECRET ?? "",
-  SUPABASE_URL: process.env.SUPABASE_URL ?? "",
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? "",
+  SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "",
+  SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? "",
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY ?? "",
   MAPBOX_API_KEY: process.env.MAPBOX_API_KEY ?? "",

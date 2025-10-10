@@ -1,127 +1,50 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import {
+  DashboardLayout,
+  MetricCard,
+  CustomerSalesTable,
+  ProductPerformanceChart,
+  useDashboardMetrics,
+  useDashboardFilters,
+  useRefreshAll
+} from '@/features/modulo-dashboard';
+import { useState } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-
-interface DashboardMetrics {
-  totalRevenue: number;
-  avgDealValue: number;
-  activeProducts: number;
-  totalCustomers: number;
-  productPerformance: Array<{
-    name: string;
-    revenue: number;
-    sales: number;
-  }>;
-  revenueByMonth: Array<{
-    month: string;
-    revenue: number;
-  }>;
-  topProducts: Array<{
-    name: string;
-    revenue: number;
-    sales: number;
-    category: string;
-  }>;
-}
 
 export default function DashboardPage() {
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch('/api/dashboard/metrics')
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch metrics');
-        return res.json();
-      })
-      .then(response => {
-        // Handle wrapped response
-        const data = response.data || response;
+  const { filters } = useDashboardFilters();
+  const { metrics, isLoading: metricsLoading } = useDashboardMetrics(filters.dateRange);
+  const { refreshAll } = useRefreshAll();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-        // Transform the data to match our interface
-        const transformedData: DashboardMetrics = {
-          totalRevenue: data.totalRevenue,
-          avgDealValue: data.avgDealValue,
-          activeProducts: data.activeProducts,
-          totalCustomers: data.totalCustomers,
-          productPerformance: data.topProducts?.map((p: any) => ({
-            name: p.productName,
-            revenue: p.revenue,
-            sales: p.dealCount
-          })) || [],
-          revenueByMonth: Object.entries(data.revenueByMonth || {}).map(([month, revenue]) => ({
-            month,
-            revenue: revenue as number
-          })),
-          topProducts: data.topProducts?.map((p: any) => ({
-            name: p.productName,
-            revenue: p.revenue,
-            sales: p.dealCount,
-            category: 'Lubrificantes' // Default category
-          })) || []
-        };
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshAll();
+    setIsRefreshing(false);
+  };
 
-        setMetrics(transformedData);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, []);
+  const handleExport = () => {
+    alert('Exportação para PDF em desenvolvimento');
+  };
 
-  if (loading) {
-    return (
-      <div className="container mx-auto p-6" data-testid="dashboard-container">
-        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {[1, 2, 3, 4].map(i => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-4 w-24" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-8 w-32" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !metrics) {
-    return (
-      <div className="container mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
-        <Card className="border-red-500">
-          <CardContent className="pt-6">
-            <p className="text-red-500">Error loading dashboard: {error}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value?: number) => {
+    if (value === undefined) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'BRL',
     }).format(value);
   };
 
-  const formatNumber = (value: number) => {
-    return new Intl.NumberFormat('pt-BR').format(value);
-  };
-
   return (
-    <div className="container mx-auto p-6" data-testid="dashboard-container">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+    <DashboardLayout
+      onRefresh={handleRefresh}
+      onExport={handleExport}
+      refreshing={isRefreshing}
+    >
+      {/* Navigation Link */}
+      <div className="flex justify-end mb-6">
         <Link
           href="/dashboard/customers"
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
@@ -130,129 +53,101 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Metrics Cards */}
+      {/* Metric Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Total Revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(metrics.totalRevenue)}</div>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Receita Total"
+          value={formatCurrency(metrics?.totalRevenue)}
+          loading={metricsLoading}
+          icon={
+            <svg
+              className="w-8 h-8"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          }
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Average Deal Value
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(metrics.avgDealValue)}</div>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Ticket Médio"
+          value={formatCurrency(metrics?.avgDeal)}
+          loading={metricsLoading}
+          icon={
+            <svg
+              className="w-8 h-8"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              />
+            </svg>
+          }
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Active Products
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.activeProducts}</div>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Produtos Ativos"
+          value={metrics?.activeProducts || 0}
+          loading={metricsLoading}
+          icon={
+            <svg
+              className="w-8 h-8"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+              />
+            </svg>
+          }
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Total Customers
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(metrics.totalCustomers)}</div>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Total de Clientes"
+          value={metrics?.totalCustomers || 0}
+          loading={metricsLoading}
+          icon={
+            <svg
+              className="w-8 h-8"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+              />
+            </svg>
+          }
+        />
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Product Performance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {metrics.productPerformance.map((product, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{product.name}</p>
-                    <p className="text-xs text-gray-500">{product.sales} sales</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold">{formatCurrency(product.revenue)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="space-y-8">
+        {/* Product Performance Chart */}
+        <ProductPerformanceChart />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Revenue by Month</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {metrics.revenueByMonth.map((month, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{month.month}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold">{formatCurrency(month.revenue)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Customer Sales Table */}
+        <CustomerSalesTable />
       </div>
-
-      {/* Top Products Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top Products</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-medium">Product Name</th>
-                  <th className="text-left py-3 px-4 font-medium">Category</th>
-                  <th className="text-right py-3 px-4 font-medium">Sales</th>
-                  <th className="text-right py-3 px-4 font-medium">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metrics.topProducts.map((product, index) => (
-                  <tr key={index} className="border-b last:border-0">
-                    <td className="py-3 px-4">{product.name}</td>
-                    <td className="py-3 px-4">{product.category}</td>
-                    <td className="py-3 px-4 text-right">{product.sales}</td>
-                    <td className="py-3 px-4 text-right font-medium">
-                      {formatCurrency(product.revenue)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    </DashboardLayout>
   );
 }

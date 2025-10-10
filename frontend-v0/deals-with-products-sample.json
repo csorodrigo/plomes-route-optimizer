@@ -1,0 +1,395 @@
+[
+  {
+    "Id": 400868361,
+    "ContactId": 401805277,
+    "Amount": 0,
+    "LastUpdateDate": "2023-11-23T15:33:46.4-03:00",
+    "Title": "FARMACE - Unidade Trocadora de Calor - SAT.075-AR (DPI-59952A)",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873645,
+    "ContactId": 401245367,
+    "Amount": 1768.21,
+    "LastUpdateDate": "2023-07-06T14:21:33.927-03:00",
+    "Title": "INGERSOLL - Comissão Novembro/2022 (Estabelecimento: 410)",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873648,
+    "ContactId": 401246090,
+    "Amount": 4000,
+    "LastUpdateDate": "2023-07-06T14:21:35.597-03:00",
+    "Title": "MOINHO SANTA LÚCIA - Locação Compressor 30kw TAG#136 - Dezembro/2022",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873661,
+    "ContactId": 401245337,
+    "Amount": 14387.54,
+    "LastUpdateDate": "2023-07-06T14:21:37.3-03:00",
+    "Title": "GERDAU - KIT ADMISSÃO, CONECTOR E MANGUEIRA -  TAG 03 R90i  B0915I0005",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873662,
+    "ContactId": 401246107,
+    "Amount": 21600,
+    "LastUpdateDate": "2025-04-08T17:24:44.353-03:00",
+    "Title": "3 Corações - Contrato de Serviço CSC (R75, TD570)",
+    "StatusId": 2,
+    "Products": [
+      {
+        "product_id": "400186344",
+        "product_name": "CIA_LOC_COMP",
+        "quantity": 0,
+        "unit_price": 0,
+        "total": 0,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402059512
+      },
+      {
+        "product_id": "400186344",
+        "product_name": "CIA_LOC_COMP",
+        "quantity": 0,
+        "unit_price": 0,
+        "total": 0,
+        "discount": 0,
+        "source": "order",
+        "order_id": 401560650
+      }
+    ]
+  },
+  {
+    "Id": 400873663,
+    "ContactId": 401245255,
+    "Amount": 17660.6,
+    "LastUpdateDate": "2024-03-22T11:40:04.03-03:00",
+    "Title": "HWR - CORRETIVA GV100 - 1423882/ 1423883",
+    "StatusId": 2,
+    "Products": [
+      {
+        "product_id": "400196989",
+        "product_name": "FILTRO DE OLEO - 0684",
+        "quantity": 2,
+        "unit_price": 590.86,
+        "total": 1181.72,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402192489
+      },
+      {
+        "product_id": "401626019",
+        "product_name": "ELEMENTOS FILTRANTES - 001651",
+        "quantity": 2,
+        "unit_price": 2778.22,
+        "total": 5556.43,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402192489
+      },
+      {
+        "product_id": "401626026",
+        "product_name": "JUNTAS - 001652",
+        "quantity": 2,
+        "unit_price": 75.22,
+        "total": 150.45,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402192489
+      },
+      {
+        "product_id": "400196988",
+        "product_name": "FILTRO DE AR - 0683",
+        "quantity": 2,
+        "unit_price": 6415.81,
+        "total": 12831.61,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402192489
+      },
+      {
+        "product_id": "400199712",
+        "product_name": "VISOR DE OLEO  1G VEDACAO VITON - 6367",
+        "quantity": 1,
+        "unit_price": 279.65,
+        "total": 279.65,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402192489
+      },
+      {
+        "product_id": "400195731",
+        "product_name": "OLEO BV100 - 008055",
+        "quantity": 2,
+        "unit_price": 768.73,
+        "total": 1537.46,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402192489
+      },
+      {
+        "product_id": "400196989",
+        "product_name": "FILTRO DE OLEO - 0684",
+        "quantity": 2,
+        "unit_price": 590.86,
+        "total": 1181.72,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402666151
+      },
+      {
+        "product_id": "401626019",
+        "product_name": "ELEMENTOS FILTRANTES - 001651",
+        "quantity": 2,
+        "unit_price": 2778.22,
+        "total": 5556.43,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402666151
+      },
+      {
+        "product_id": "401626026",
+        "product_name": "JUNTAS - 001652",
+        "quantity": 2,
+        "unit_price": 75.22,
+        "total": 150.45,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402666151
+      },
+      {
+        "product_id": "400196988",
+        "product_name": "FILTRO DE AR - 0683",
+        "quantity": 2,
+        "unit_price": 6415.81,
+        "total": 12831.61,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402666151
+      },
+      {
+        "product_id": "400199712",
+        "product_name": "VISOR DE OLEO  1G VEDACAO VITON - 6367",
+        "quantity": 1,
+        "unit_price": 279.65,
+        "total": 279.65,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402666151
+      },
+      {
+        "product_id": "400195731",
+        "product_name": "OLEO BV100 - 008055",
+        "quantity": 2,
+        "unit_price": 768.73,
+        "total": 1537.46,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 402666151
+      },
+      {
+        "product_id": "400196989",
+        "product_name": "FILTRO DE OLEO - 0684",
+        "quantity": 2,
+        "unit_price": 590.86,
+        "total": 1181.72,
+        "discount": 0,
+        "source": "order",
+        "order_id": 402074058
+      },
+      {
+        "product_id": "401626019",
+        "product_name": "ELEMENTOS FILTRANTES - 001651",
+        "quantity": 2,
+        "unit_price": 2778.22,
+        "total": 5556.43,
+        "discount": 0,
+        "source": "order",
+        "order_id": 402074058
+      },
+      {
+        "product_id": "401626026",
+        "product_name": "JUNTAS - 001652",
+        "quantity": 2,
+        "unit_price": 75.22,
+        "total": 150.45,
+        "discount": 0,
+        "source": "order",
+        "order_id": 402074058
+      },
+      {
+        "product_id": "400196988",
+        "product_name": "FILTRO DE AR - 0683",
+        "quantity": 2,
+        "unit_price": 6415.81,
+        "total": 12831.61,
+        "discount": 0,
+        "source": "order",
+        "order_id": 402074058
+      },
+      {
+        "product_id": "400199712",
+        "product_name": "VISOR DE OLEO  1G VEDACAO VITON - 6367",
+        "quantity": 1,
+        "unit_price": 279.65,
+        "total": 279.65,
+        "discount": 0,
+        "source": "order",
+        "order_id": 402074058
+      },
+      {
+        "product_id": "400195731",
+        "product_name": "OLEO BV100 - 008055",
+        "quantity": 2,
+        "unit_price": 768.73,
+        "total": 1537.46,
+        "discount": 0,
+        "source": "order",
+        "order_id": 402074058
+      }
+    ]
+  },
+  {
+    "Id": 400873677,
+    "ContactId": 401245561,
+    "Amount": 4556.87,
+    "LastUpdateDate": "2023-07-03T12:46:32.36-03:00",
+    "Title": "INTERLANDIA CE - SRV 16k R90ix-B0419I0049 + 8k R90ix-B1220I0005 + Preventiva TD675-118427 2022",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873683,
+    "ContactId": 401246102,
+    "Amount": 49253.34,
+    "LastUpdateDate": "2023-07-06T14:21:41.427-03:00",
+    "Title": "TU - 40k R75i-2",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873717,
+    "ContactId": 401246614,
+    "Amount": 8550,
+    "LastUpdateDate": "2023-07-06T14:21:43.66-03:00",
+    "Title": "INGREDION - Locação 15kW + secador + Trafo (Dez/2022 e Jan/2023)",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873721,
+    "ContactId": 401246606,
+    "Amount": 20600,
+    "LastUpdateDate": "2023-07-06T14:21:45.567-03:00",
+    "Title": "INAPI - Rev 24k GA55 550218",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873727,
+    "ContactId": 401245318,
+    "Amount": 348000,
+    "LastUpdateDate": "2023-08-21T09:28:24.46-03:00",
+    "Title": "FERRONORTE - Projeto de Rede de Ar - Peça + Serviço (ANEXO)",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873730,
+    "ContactId": 401806280,
+    "Amount": 124000,
+    "LastUpdateDate": "2023-08-14T16:52:37.9-03:00",
+    "Title": "TOP PLAST - Unidade Trocador de Calor SAT.060-AR 11/2022",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873732,
+    "ContactId": 401245409,
+    "Amount": 12024.02,
+    "LastUpdateDate": "2023-07-06T14:21:50.363-03:00",
+    "Title": "TBM - COTACAO  6922 - PEÇAS DIVERSAS GA90 E SSR 125-EP",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873733,
+    "ContactId": 401246090,
+    "Amount": 2853.47,
+    "LastUpdateDate": "2023-07-06T14:21:51.927-03:00",
+    "Title": "MOINHO SANTA LÚCIA -  Mudança de Local Compressor R37",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873734,
+    "ContactId": 401247056,
+    "Amount": 6484.85,
+    "LastUpdateDate": "2023-07-06T14:21:53.207-03:00",
+    "Title": "GEPLE SERVIÇOS - ELEMENTO FILTRO DE AR MOD. FA1830IH",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873739,
+    "ContactId": 401245347,
+    "Amount": 27000,
+    "LastUpdateDate": "2023-07-06T14:21:54.643-03:00",
+    "Title": "HALEX ISTAR - ELEMENTOS FILTRANTES FA2300IG, FA2300IH, FA2300IA, E058A2, AO025EGFX, AA025EGFX",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873743,
+    "ContactId": 401245387,
+    "Amount": 269.74,
+    "LastUpdateDate": "2023-08-07T15:07:03.557-03:00",
+    "Title": "MDB MARACANAU - CORREÇÃO DE VAZAMENTO DE OLEO - Oring R90N B1217I0040",
+    "StatusId": 2,
+    "Products": [
+      {
+        "product_id": "400094784",
+        "product_name": "ANEL O RING ING. RAND 20A11EM256 - 00080",
+        "quantity": 1,
+        "unit_price": 269.74,
+        "total": 269.74,
+        "discount": 0,
+        "source": "quote",
+        "quote_id": 400641050
+      }
+    ]
+  },
+  {
+    "Id": 400873744,
+    "ContactId": 401245396,
+    "Amount": 1987.37,
+    "LastUpdateDate": "2023-07-06T14:21:56.44-03:00",
+    "Title": "NACIONAL GAS SLZ - Serviço de Corretiva do Secador TAS do R30n B1019I0012",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873759,
+    "ContactId": 401245387,
+    "Amount": 7150,
+    "LastUpdateDate": "2023-07-06T14:22:01.27-03:00",
+    "Title": "MDIAS MARACANAU - Locação Compressor 45kW (TAG #106) (2022-11)",
+    "StatusId": 2,
+    "Products": []
+  },
+  {
+    "Id": 400873760,
+    "ContactId": 401247117,
+    "Amount": 894.12,
+    "LastUpdateDate": "2023-07-06T14:22:02.677-03:00",
+    "Title": "HOTEIS SEARA - Manutenção em Compressor 0,5cv",
+    "StatusId": 2,
+    "Products": []
+  }
+]

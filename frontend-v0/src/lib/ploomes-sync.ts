@@ -90,12 +90,32 @@ export class PloomesSyncService {
       for (let i = 0; i < products.length; i += this.BATCH_SIZE) {
         const batch = products.slice(i, i + this.BATCH_SIZE);
 
-        const { data, error } = await supabase
-          .from('products')
-          .upsert(batch, {
-            onConflict: 'product_code',
-            returning: 'minimal'
-          });
+        const { data, error } = await supabaseServer.sql(
+          `INSERT INTO products (product_code, name, brand, category, type, price, active, created_at, updated_at, raw_data)
+           VALUES ${batch.map((_, index) => `($${index * 9 + 1}, $${index * 9 + 2}, $${index * 9 + 3}, $${index * 9 + 4}, $${index * 9 + 5}, $${index * 9 + 6}, $${index * 9 + 7}, $${index * 9 + 8}, $${index * 9 + 9})`).join(', ')}
+           ON CONFLICT (product_code)
+           DO UPDATE SET
+             name = EXCLUDED.name,
+             brand = EXCLUDED.brand,
+             category = EXCLUDED.category,
+             type = EXCLUDED.type,
+             price = EXCLUDED.price,
+             active = EXCLUDED.active,
+             updated_at = EXCLUDED.updated_at,
+             raw_data = EXCLUDED.raw_data`,
+          batch.flatMap(product => [
+            product.product_code,
+            product.name,
+            product.brand,
+            product.category,
+            product.type,
+            product.price,
+            product.active,
+            product.created_at,
+            product.updated_at,
+            JSON.stringify(product.raw_data)
+          ])
+        );
 
         if (error) throw error;
 
