@@ -19,9 +19,12 @@ export async function GET(request: NextRequest) {
 
     console.log(`🔍 [CACHED SEARCH] Searching for customer: ${query}`);
 
-    // Initialize Supabase
-    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    // Initialize Supabase - use server env vars first, fallback to public
+    const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+    console.log('🔧 [CACHED SEARCH] Using Supabase URL:', SUPABASE_URL ? 'OK' : 'MISSING');
+    console.log('🔧 [CACHED SEARCH] Using Supabase Key:', SUPABASE_KEY ? 'OK' : 'MISSING');
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // Search customers in Supabase (much faster than Ploomes)
@@ -33,7 +36,16 @@ export async function GET(request: NextRequest) {
 
     if (customerError) {
       console.error('[CACHED SEARCH] Customer search error:', customerError);
-      throw customerError;
+      console.error('[CACHED SEARCH] Error details:', JSON.stringify(customerError, null, 2));
+
+      return NextResponse.json(
+        {
+          error: 'Erro ao conectar com banco de dados',
+          details: customerError.message || 'Database connection failed',
+          code: customerError.code || 'DB_ERROR'
+        },
+        { status: 500 }
+      );
     }
 
     if (!customersData || customersData.length === 0) {
