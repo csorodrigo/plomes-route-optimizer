@@ -1,12 +1,17 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, AuthUser } from '@/lib/supabase-client';
-import { Session, User } from '@supabase/supabase-js';
+import { apiService } from '@/lib/api';
+
+interface AuthUser {
+  id: number;
+  email: string;
+  name: string;
+  lastLogin?: string;
+}
 
 interface AuthContextType {
   user: AuthUser | null;
-  session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{
     success: boolean;
@@ -41,79 +46,57 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
+    // Check for existing auth token
+    const checkAuthToken = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const token = localStorage.getItem('auth_token');
 
-        if (error) {
-          console.error('Error getting session:', error);
-        } else {
-          setSession(session);
-          setUser(session?.user as AuthUser || null);
+        if (token) {
+          // Verify token with API
+          const result = await apiService.verify();
+          if (result.success && result.user) {
+            setUser(result.user);
+            console.log('Auth state changed: INITIAL_SESSION', result.user.email);
+          } else {
+            // Invalid token, remove it
+            localStorage.removeItem('auth_token');
+          }
         }
       } catch (error) {
-        console.error('Error in getInitialSession:', error);
+        console.error('Error verifying token:', error);
+        localStorage.removeItem('auth_token');
       } finally {
         setLoading(false);
       }
     };
 
-    getInitialSession();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
-
-        setSession(session);
-        setUser(session?.user as AuthUser || null);
-        setLoading(false);
-
-        // Handle specific events
-        if (event === 'SIGNED_OUT') {
-          // Clear any additional app state if needed
-          setUser(null);
-          setSession(null);
-        }
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    checkAuthToken();
   }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.toLowerCase().trim(),
-        password,
-      });
+      const result = await apiService.login(email.toLowerCase().trim(), password);
 
-      if (error) {
-        return {
-          success: false,
-          error: error.message,
-        };
-      }
+      if (result.success && result.token && result.user) {
+        // Store token in localStorage
+        localStorage.setItem('auth_token', result.token);
+        setUser(result.user);
+        console.log('Auth state changed: SIGNED_IN', result.user.email);
 
-      if (data.user && data.session) {
         return {
           success: true,
-          user: data.user as AuthUser,
+          user: result.user,
         };
       }
 
       return {
         success: false,
-        error: 'Falha no login. Tente novamente.',
+        error: result.message || 'Falha no login. Tente novamente.',
       };
     } catch (error) {
       console.error('Sign in error:', error);
@@ -130,31 +113,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       setLoading(true);
 
-      const { data, error } = await supabase.auth.signUp({
-        email: email.toLowerCase().trim(),
-        password,
-        options: {
-          data: metadata || {},
-        },
-      });
-
-      if (error) {
-        return {
-          success: false,
-          error: error.message,
-        };
-      }
-
-      if (data.user) {
-        return {
-          success: true,
-          user: data.user as AuthUser,
-        };
-      }
-
+      // For now, sign up is not implemented with our custom API
+      // This would need to be created as a new endpoint
       return {
         success: false,
-        error: 'Falha no registro. Tente novamente.',
+        error: 'Registro não implementado. Entre em contato com o administrador.',
       };
     } catch (error) {
       console.error('Sign up error:', error);
@@ -171,15 +134,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        console.error('Sign out error:', error);
-      }
-
-      // Clear state regardless of error
+      // Remove token from localStorage
+      localStorage.removeItem('auth_token');
       setUser(null);
-      setSession(null);
+      console.log('Auth state changed: SIGNED_OUT');
     } catch (error) {
       console.error('Sign out error:', error);
     } finally {
@@ -189,19 +147,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const resetPassword = async (email: string) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
-      });
-
-      if (error) {
-        return {
-          success: false,
-          error: error.message,
-        };
-      }
-
+      // Reset password is not implemented with our custom API
+      // This would need to be created as a new endpoint
       return {
-        success: true,
+        success: false,
+        error: 'Reset de senha não implementado. Entre em contato com o administrador.',
       };
     } catch (error) {
       console.error('Reset password error:', error);
@@ -214,7 +164,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const value: AuthContextType = {
     user,
-    session,
     loading,
     signIn,
     signUp,

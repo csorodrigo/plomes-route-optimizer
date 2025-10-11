@@ -433,11 +433,12 @@ export default function CustomerDashboard() {
   };
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+    <div className="p-6 space-y-6 min-h-screen">
       {/* Header com Busca */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold">Dashboard do Cliente</h1>
+      <div className="glass-card rounded-xl shadow-lg p-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Dashboard Clientes Ploomes</h1>
+          <p className="text-gray-600 mt-2">Sistema de análise de vendas e clientes</p>
         </div>
 
         {/* Campos de Busca */}
@@ -489,7 +490,7 @@ export default function CustomerDashboard() {
             <Button
               onClick={handleSearch}
               disabled={loading}
-              className="min-w-[200px]"
+              className="btn-gradient min-w-[200px] text-white font-semibold py-3 px-8 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
               size="lg"
             >
               {loading ? (
@@ -508,7 +509,7 @@ export default function CustomerDashboard() {
 
           {/* Indicador do Modo de Busca */}
           {(searchTerm || productSearchTerm) && (
-            <div className="text-center text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+            <div className="text-center text-sm text-gray-600 bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-xl border border-blue-200 shadow-sm">
               <span className="font-medium">Modo de busca:</span> {' '}
               <span className="font-semibold text-blue-700">
                 {searchTerm && productSearchTerm ? '🎯 Cliente + Produto específico' :
@@ -525,15 +526,18 @@ export default function CustomerDashboard() {
         </div>
 
         {error && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">
-            {error}
+          <div className="mt-4 p-4 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 text-red-700 rounded-xl shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⚠️</span>
+              <span className="font-medium">{error}</span>
+            </div>
           </div>
         )}
       </div>
 
       {/* Search Results - Multiple Customers */}
       {showResults && searchResults.length > 1 && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="glass-card rounded-xl shadow-lg p-6">
           <div className="mb-4">
             <h2 className="text-xl font-semibold">Resultados da Busca</h2>
             <p className="text-gray-600">
@@ -549,7 +553,7 @@ export default function CustomerDashboard() {
             {searchResults.map((result, index) => (
               <Card
                 key={result.customer.id}
-                className="cursor-pointer hover:shadow-lg transition-shadow border-2 hover:border-blue-300"
+                className="cursor-pointer hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-400 glass-card hover:scale-105"
                 onClick={() => handleCustomerSelect(result)}
               >
                 <CardContent className="p-4">
@@ -624,7 +628,7 @@ export default function CustomerDashboard() {
       {/* Informações do Cliente - Clicável */}
       {customer && (
         <Card
-          className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-blue-300"
+          className="glass-card p-6 hover:shadow-xl transition-all duration-300 cursor-pointer border-2 hover:border-blue-400 hover:scale-[1.02]"
           onClick={() => setShowOrderModal(true)}
         >
           <div className="flex justify-between items-start">
@@ -711,7 +715,7 @@ export default function CustomerDashboard() {
             <div className="flex-1 overflow-y-auto p-6">
               {/* Resumo Geral */}
               <div className="grid grid-cols-4 gap-4 mb-6">
-                <Card className="p-4 bg-blue-50">
+                <Card className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 shadow-lg">
                   <div className="flex items-center gap-2">
                     <ShoppingCart className="h-5 w-5 text-blue-600" />
                     <div>
@@ -720,7 +724,7 @@ export default function CustomerDashboard() {
                     </div>
                   </div>
                 </Card>
-                <Card className="p-4 bg-green-50">
+                <Card className="p-4 bg-gradient-to-br from-green-50 to-green-100 border border-green-200 shadow-lg">
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-5 w-5 text-green-600" />
                     <div>
@@ -731,7 +735,7 @@ export default function CustomerDashboard() {
                     </div>
                   </div>
                 </Card>
-                <Card className="p-4 bg-purple-50">
+                <Card className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 shadow-lg">
                   <div className="flex items-center gap-2">
                     <Package className="h-5 w-5 text-purple-600" />
                     <div>
@@ -740,7 +744,7 @@ export default function CustomerDashboard() {
                     </div>
                   </div>
                 </Card>
-                <Card className="p-4 bg-orange-50">
+                <Card className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 shadow-lg">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-5 w-5 text-orange-600" />
                     <div>
