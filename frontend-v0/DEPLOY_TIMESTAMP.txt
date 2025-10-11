@@ -1,0 +1,7 @@
+Deployment triggered at: 2025-10-11T18:05:00Z
+Changes:
+- src/app/login/page.tsx: Changed router.push to window.location.href = "/dashboard/cliente"
+- src/components/AuthGuard.tsx: Redirect to /dashboard/cliente
+- src/middleware.ts: Redirect root to /dashboard/cliente
+- .npmrc: Added legacy-peer-deps=true
+- Removed corrupted favicon

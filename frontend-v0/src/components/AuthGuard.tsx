@@ -14,9 +14,14 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && !user && pathname !== '/login') {
-      // Redirect to login if not authenticated
-      router.push('/login');
+    if (!loading) {
+      if (!user && pathname !== '/login') {
+        // Redirect to login if not authenticated
+        router.push('/login');
+      } else if (user && pathname === '/login') {
+        // Redirect authenticated users away from login page
+        router.push('/dashboard/cliente');
+      }
     }
   }, [user, loading, pathname, router]);
 
