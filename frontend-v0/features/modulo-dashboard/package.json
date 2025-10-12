@@ -1,0 +1,82 @@
+{
+  "name": "dashboard-module-tests",
+  "version": "1.0.0",
+  "description": "Comprehensive testing suite for the dashboard module",
+  "scripts": {
+    "test": "node test-runner.config.js",
+    "test:unit": "jest __tests__ --coverage --watchAll=false",
+    "test:integration": "jest __tests__/integration --watchAll=false",
+    "test:e2e": "playwright test __e2e__/dashboard-workflows.spec.ts",
+    "test:visual": "playwright test __e2e__/visual-regression.spec.ts",
+    "test:coverage": "node test-runner.config.js --coverage",
+    "test:validate-coverage": "node test-runner.config.js --validate-coverage",
+    "test:ci": "node test-runner.config.js --skip-e2e --coverage",
+    "test:watch": "jest __tests__ --watch",
+    "test:debug": "node --inspect-brk=0.0.0.0:9229 node_modules/.bin/jest --runInBand --no-cache __tests__",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf coverage test-results .nyc_output",
+    "clean:screenshots": "rm -rf test-results/visual-regression-*",
+    "report:open": "open coverage/lcov-report/index.html",
+    "report:serve": "npx http-server coverage/lcov-report -p 8080"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "setupFilesAfterEnv": ["<rootDir>/__tests__/utils/test-utils.tsx"],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/../../src/$1"
+    },
+    "testMatch": [
+      "<rootDir>/__tests__/**/*.test.{js,jsx,ts,tsx}"
+    ],
+    "collectCoverageFrom": [
+      "<rootDir>/components/**/*.{js,jsx,ts,tsx}",
+      "<rootDir>/hooks/**/*.{js,jsx,ts,tsx}",
+      "<rootDir>/types/**/*.{js,jsx,ts,tsx}",
+      "!<rootDir>/components/**/*.stories.{js,jsx,ts,tsx}",
+      "!<rootDir>/components/**/index.{js,jsx,ts,tsx}",
+      "!<rootDir>/**/*.d.ts"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 85,
+        "functions": 85,
+        "lines": 85,
+        "statements": 85
+      }
+    },
+    "coverageReporters": [
+      "text",
+      "text-summary",
+      "html",
+      "lcov",
+      "json",
+      "json-summary"
+    ],
+    "coverageDirectory": "<rootDir>/coverage",
+    "verbose": true,
+    "maxWorkers": "50%",
+    "testTimeout": 30000
+  },
+  "dependencies": {
+    "@testing-library/jest-dom": "^6.1.4",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "@playwright/test": "^1.56.0",
+    "msw": "^2.0.0"
+  },
+  "keywords": [
+    "testing",
+    "dashboard",
+    "react",
+    "jest",
+    "playwright",
+    "e2e",
+    "unit-tests",
+    "integration-tests",
+    "visual-regression"
+  ],
+  "author": "Dashboard Test Team",
+  "license": "MIT"
+}

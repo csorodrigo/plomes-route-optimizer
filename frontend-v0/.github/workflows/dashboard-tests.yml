@@ -1,0 +1,420 @@
+name: Dashboard Module Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'features/modulo-dashboard/**'
+      - 'src/lib/**'
+      - 'src/components/ui/**'
+      - '.github/workflows/dashboard-tests.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'features/modulo-dashboard/**'
+      - 'src/lib/**'
+      - 'src/components/ui/**'
+      - '.github/workflows/dashboard-tests.yml'
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: 'Run E2E tests'
+        required: false
+        default: 'true'
+        type: boolean
+      run_visual:
+        description: 'Run visual regression tests'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+  NEXT_TELEMETRY_DISABLED: 1
+  CI: true
+
+jobs:
+  # Quality checks (lint, type-check)
+  quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript check
+        run: npm run type-check
+
+      - name: Upload lint results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-results
+          path: |
+            eslint-report.json
+          retention-days: 7
+
+  # Unit and Integration Tests
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: quality
+    strategy:
+      matrix:
+        test-type: [unit, integration]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ${{ matrix.test-type }} tests
+        run: |
+          cd features/modulo-dashboard
+          if [ "${{ matrix.test-type }}" = "unit" ]; then
+            npm run test:unit
+          else
+            npm run test:integration
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.test-type }}
+          path: |
+            features/modulo-dashboard/coverage/
+            features/modulo-dashboard/test-results/
+          retention-days: 30
+
+      - name: Upload coverage to Codecov
+        if: matrix.test-type == 'unit'
+        uses: codecov/codecov-action@v3
+        with:
+          file: features/modulo-dashboard/coverage/lcov.info
+          flags: dashboard-unit-tests
+          name: Dashboard Unit Tests
+
+  # E2E Tests
+  e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ github.event.inputs.run_e2e != 'false' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Build application
+        run: npm run build
+
+      - name: Start application server
+        run: |
+          npm start &
+          npx wait-on http://localhost:3000 --timeout 60000
+
+      - name: Run E2E tests
+        run: |
+          cd features/modulo-dashboard
+          npm run test:e2e
+
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            features/modulo-dashboard/test-results/
+            features/modulo-dashboard/playwright-report/
+          retention-days: 30
+
+      - name: Upload E2E videos
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-videos
+          path: features/modulo-dashboard/test-results/videos/
+          retention-days: 7
+
+  # Visual Regression Tests
+  visual-regression:
+    name: Visual Regression Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ github.event.inputs.run_visual == 'true' || github.event_name == 'schedule' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Build application
+        run: npm run build
+
+      - name: Start application server
+        run: |
+          npm start &
+          npx wait-on http://localhost:3000 --timeout 60000
+
+      - name: Run visual regression tests
+        run: |
+          cd features/modulo-dashboard
+          npm run test:visual
+
+      - name: Upload visual regression results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-results
+          path: |
+            features/modulo-dashboard/test-results/
+            features/modulo-dashboard/playwright-report/
+          retention-days: 30
+
+      - name: Upload screenshot diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-diffs
+          path: features/modulo-dashboard/test-results/**/diff-*.png
+          retention-days: 14
+
+  # Performance Tests
+  performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            http://localhost:3000/dashboard
+            http://localhost:3000/dashboard/customers
+          configPath: ./.lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-results
+          path: .lighthouseci/
+          retention-days: 30
+
+  # Security Audit
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+  # Aggregate test results and create summary
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [quality, test, e2e, visual-regression, performance, security]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-artifacts
+
+      - name: Generate test summary
+        run: |
+          echo "# 📊 Dashboard Module Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Results Overview" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Quality checks
+          if [ "${{ needs.quality.result }}" = "success" ]; then
+            echo "✅ **Code Quality**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Code Quality**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Unit tests
+          if [ "${{ needs.test.result }}" = "success" ]; then
+            echo "✅ **Unit & Integration Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Unit & Integration Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # E2E tests
+          if [ "${{ needs.e2e.result }}" = "success" ]; then
+            echo "✅ **E2E Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.e2e.result }}" = "skipped" ]; then
+            echo "⏭️ **E2E Tests**: SKIPPED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **E2E Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Visual regression
+          if [ "${{ needs.visual-regression.result }}" = "success" ]; then
+            echo "✅ **Visual Regression**: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.visual-regression.result }}" = "skipped" ]; then
+            echo "⏭️ **Visual Regression**: SKIPPED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Visual Regression**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Performance
+          if [ "${{ needs.performance.result }}" = "success" ]; then
+            echo "✅ **Performance**: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.performance.result }}" = "skipped" ]; then
+            echo "⏭️ **Performance**: SKIPPED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Performance**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Security
+          if [ "${{ needs.security.result }}" = "success" ]; then
+            echo "✅ **Security**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Security**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📁 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Test coverage reports" >> $GITHUB_STEP_SUMMARY
+          echo "- E2E test videos (if failed)" >> $GITHUB_STEP_SUMMARY
+          echo "- Visual regression screenshots" >> $GITHUB_STEP_SUMMARY
+          echo "- Performance metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- Security scan results" >> $GITHUB_STEP_SUMMARY
+
+      - name: Create test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-test-report
+          path: test-artifacts/
+          retention-days: 30
+
+  # Notify on failure (optional)
+  notify:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [quality, test, e2e, visual-regression, performance, security]
+    if: failure() && github.ref == 'refs/heads/main'
+    steps:
+      - name: Send Slack notification
+        if: ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: 'Dashboard module tests failed on main branch'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Create GitHub issue
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Dashboard Module Test Failure - Scheduled Run',
+              body: `
+                ## 🚨 Scheduled Test Failure
+
+                The dashboard module tests failed during the scheduled run.
+
+                **Workflow**: ${context.workflow}
+                **Run**: ${context.runNumber}
+                **Commit**: ${context.sha}
+
+                Please investigate and fix the failing tests.
+
+                [View workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId})
+              `,
+              labels: ['bug', 'test-failure', 'dashboard']
+            });
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
