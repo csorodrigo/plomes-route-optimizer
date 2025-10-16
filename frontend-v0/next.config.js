@@ -9,7 +9,7 @@ const nextConfig = {
     domains: ['localhost'],
     unoptimized: true,
   },
-  transpilePackages: [],
+  transpilePackages: ['recharts', 'es-toolkit'],
 }
 
 module.exports = nextConfig

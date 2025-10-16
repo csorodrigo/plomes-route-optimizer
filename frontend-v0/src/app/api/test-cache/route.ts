@@ -15,7 +15,7 @@ export async function GET() {
 
     console.log(`[TEST CACHE] Current working directory: ${process.cwd()}`);
 
-    let result = {
+    const result = {
       cwd: process.cwd(),
       pathsChecked: [],
       foundPath: null,
