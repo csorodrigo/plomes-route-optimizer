@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Search, Loader2, MapPin, Navigation } from "lucide-react";
-import { filterCustomersInRadius, calculateDistance } from "@/lib/geo";
+import { Search, Loader2, MapPin } from "lucide-react";
+import { filterCustomersInRadius } from "@/lib/geo";
 
 interface GeocodeResult {
   lat: number;

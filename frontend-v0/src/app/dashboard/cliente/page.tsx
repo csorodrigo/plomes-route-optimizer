@@ -11,14 +11,12 @@ import {
   TrendingUp,
   Calendar,
   DollarSign,
-  Users,
   Award,
   Target,
   BarChart3,
   ShoppingCart,
   X,
   ChevronRight,
-  Clock,
   TrendingDown
 } from "lucide-react";
 
@@ -544,8 +542,8 @@ export default function CustomerDashboard() {
               Encontrados {searchResults.length} {' '}
               {searchMode === 'product' ? 'clientes que compraram' :
                searchMode === 'both' ? 'resultados para cliente' : 'clientes para'} {' '}
-              "{searchMode === 'product' ? productSearchTerm :
-                searchMode === 'both' ? `${searchTerm} (produto: ${productSearchTerm})` : searchTerm}"
+              &ldquo;{searchMode === 'product' ? productSearchTerm :
+                searchMode === 'both' ? `${searchTerm} (produto: ${productSearchTerm})` : searchTerm}&rdquo;
             </p>
           </div>
 
