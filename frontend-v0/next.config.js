@@ -10,7 +10,6 @@ const nextConfig = {
     unoptimized: true,
   },
   transpilePackages: [],
-  output: 'standalone',
 }
 
 module.exports = nextConfig
