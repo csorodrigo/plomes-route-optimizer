@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { MapContainer as LeafletMap, TileLayer, Marker, Polyline, Popup, Circle } from "react-leaflet";
+import { MapContainer as LeafletMap, TileLayer, Marker, Polyline, Popup, Circle, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 
 import { isValidBrazilCoordinates, kmToMeters } from "@/lib/geo";
@@ -52,6 +52,19 @@ interface MapContainerProps {
   onToggleCustomer: (id: string) => void;
   onOriginDrag?: (lat: number, lng: number) => void;
   routePolyline?: LatLngTuple[];
+  onMapClick?: (lat: number, lng: number) => void;
+}
+
+// Component to handle map click events
+function MapClickHandler({ onClick }: { onClick?: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click: (e) => {
+      if (onClick) {
+        onClick(e.latlng.lat, e.latlng.lng);
+      }
+    },
+  });
+  return null;
 }
 
 export function MapContainer({
@@ -61,6 +74,7 @@ export function MapContainer({
   onToggleCustomer,
   onOriginDrag,
   routePolyline,
+  onMapClick,
 }: MapContainerProps) {
   const center = useMemo<LatLngTuple>(() => {
     if (originCoords && isValidBrazilCoordinates(originCoords.lat, originCoords.lng)) {
@@ -93,6 +107,8 @@ export function MapContainer({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        <MapClickHandler onClick={onMapClick} />
 
         {originCoords && isValidBrazilCoordinates(originCoords.lat, originCoords.lng) && (
           <>
