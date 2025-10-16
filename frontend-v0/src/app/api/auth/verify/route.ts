@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from 'jsonwebtoken';
-import { createClient } from '@supabase/supabase-js';
-import { env } from "@/lib/env.server";
+import { supabaseServer } from "@/lib/supabase-server";
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,16 +19,15 @@ export async function GET(request: NextRequest) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as { userId: number; email: string; name?: string };
 
-      // Fetch user details from Supabase to get the name
-      const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
-      const { data: user, error: dbError } = await supabase
-        .from('users')
-        .select('id, email, name, role')
-        .eq('id', decoded.userId)
-        .single();
+      // Fetch user details from database
+      const result = await supabaseServer.sql<{id: number; email: string; name: string; role: string}>(
+        'SELECT id, email, name, role FROM users WHERE id = $1',
+        [decoded.userId]
+      );
 
-      if (dbError || !user) {
-        console.error('Error fetching user details:', dbError);
+      const user = result.data?.[0];
+      if (result.error || !user) {
+        console.error('Error fetching user details:', result.error);
         return NextResponse.json(
           { success: false, error: "User not found" },
           { status: 404 }

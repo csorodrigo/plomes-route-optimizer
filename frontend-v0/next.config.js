@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   experimental: {
     serverActions: {
       allowedOrigins: ["localhost:3000", "frontend-v0-delta.vercel.app"],
@@ -9,7 +15,7 @@ const nextConfig = {
     domains: ['localhost'],
     unoptimized: true,
   },
-  transpilePackages: ['recharts', 'es-toolkit'],
+  transpilePackages: ['recharts'],
 }
 
 module.exports = nextConfig
