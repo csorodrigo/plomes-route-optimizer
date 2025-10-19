@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { MapContainer as LeafletMap, TileLayer, Marker, Polyline, Popup, Circle, useMapEvents } from "react-leaflet";
+import { useMemo, useEffect, useRef } from "react";
+import { MapContainer as LeafletMap, TileLayer, Marker, Polyline, Popup, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 
 import { isValidBrazilCoordinates, kmToMeters } from "@/lib/geo";
@@ -55,29 +55,36 @@ interface MapContainerProps {
   onMapClick?: (lat: number, lng: number) => void;
 }
 
-// Component to handle map click events
-// IMPORTANT: This component must NOT be tree-shaken - it provides critical map interaction
+// Component to handle map click events using direct Leaflet API
+// This approach avoids tree-shaking issues with useMapEvents
 function MapClickHandler({ onClick }: { onClick?: (lat: number, lng: number) => void }) {
-  // Force reference to prevent tree-shaking
-  const map = useMapEvents({
-    click: (e) => {
-      console.log('🎯 MapClickHandler: click event fired!', e.latlng);
-      if (onClick) {
-        console.log('✅ Calling onClick handler...');
-        onClick(e.latlng.lat, e.latlng.lng);
-      } else {
-        console.warn('⚠️ No onClick handler provided!');
-      }
-    },
-  });
+  const map = useMap();
 
-  console.log('🔧 MapClickHandler mounted, onClick:', !!onClick, 'map:', !!map);
-  // Return invisible marker to prevent tree-shaking while not rendering anything visible
+  useEffect(() => {
+    if (!onClick || !map) {
+      console.warn('⚠️ MapClickHandler: missing onClick or map', { onClick: !!onClick, map: !!map });
+      return;
+    }
+
+    console.log('✅ MapClickHandler: registering click handler');
+
+    const handleClick = (e: L.LeafletMouseEvent) => {
+      console.log('🎯 Map clicked!', e.latlng);
+      onClick(e.latlng.lat, e.latlng.lng);
+    };
+
+    // Add event listener directly to Leaflet map
+    map.on('click', handleClick);
+
+    // Cleanup
+    return () => {
+      console.log('🧹 MapClickHandler: removing click handler');
+      map.off('click', handleClick);
+    };
+  }, [map, onClick]);
+
   return null;
 }
-
-// Export to prevent tree-shaking
-MapClickHandler.displayName = 'MapClickHandler';
 
 export function MapContainer({
   originCoords,
