@@ -314,13 +314,28 @@ export default function HomePage() {
       const margin = 20;
       let yPos = margin;
 
-      // Header
+      // Header com logo
       doc.setFillColor(37, 99, 235); // blue-600
-      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.rect(0, 0, pageWidth, 35, 'F');
+
+      // Adicionar logo
+      try {
+        const logoImg = await fetch('/logo.png');
+        const logoBlob = await logoImg.blob();
+        const logoBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(logoBlob);
+        });
+        doc.addImage(logoBase64, 'PNG', 10, 5, 25, 25);
+      } catch (e) {
+        console.warn('Logo não carregado no PDF');
+      }
+
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
-      doc.text('ROTA DE ENTREGA', pageWidth / 2, 20, { align: 'center' });
+      doc.text('ROTA DE ENTREGA', pageWidth / 2, 22, { align: 'center' });
 
       yPos = 45;
       doc.setTextColor(0, 0, 0);
@@ -519,21 +534,11 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
-                  <svg
-                    className="w-6 h-6 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-                    />
-                  </svg>
-                </div>
+                <img
+                  src="/logo.png"
+                  alt="CIA Máquinas"
+                  className="h-12 w-auto"
+                />
                 <div>
                   <h1 className="text-xl font-bold text-slate-900">
                     Otimizador de Rotas
@@ -577,10 +582,10 @@ export default function HomePage() {
 
               {/* Dropdown Menu */}
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50">
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-[100]">
                   <div className="py-1">
                     <button
-                      onClick={() => alert("Gerenciar Usuários em desenvolvimento")}
+                      onClick={() => window.location.href = "/users"}
                       className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
                     >
                       <svg
