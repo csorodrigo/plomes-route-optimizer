@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
+import { filterCustomersInRadius } from "@/lib/geo";
 
 // Components
 import { ControlPanel } from "@/components/control-panel";
@@ -34,10 +35,18 @@ export default function HomePage() {
   const [isOptimizingRoute, setIsOptimizingRoute] = useState(false);
   const [routePolyline, setRoutePolyline] = useState<LatLngTuple[] | undefined>(undefined);
 
+  // Filter customers within radius
+  const filteredCustomers = useMemo(() => {
+    if (!originCoords || customers.length === 0) {
+      return [];
+    }
+    return filterCustomersInRadius(customers, originCoords, distanceFilter);
+  }, [customers, originCoords, distanceFilter]);
+
   // Stats calculation
   const stats = {
     totalClients: customers.length,
-    clientsInRadius: customers.filter((c) => c.selected).length,
+    clientsInRadius: filteredCustomers.length,
     routeDistance: routePolyline ? `${(routePolyline.length * 0.5).toFixed(1)} km` : "0 km",
     estimatedTime: routePolyline ? `${Math.ceil(routePolyline.length * 2)} min` : "0 min",
     stops: selectedClients.length,
@@ -59,8 +68,11 @@ export default function HomePage() {
       let cityName = originCity;
       let stateName = "";
 
-      // If coords were provided (from map click), use them directly
-      if (coords) {
+      // Distinguish between map click and manual CEP search
+      const isMapClick = coords && !originCoords;
+
+      // If coords were provided from map click, use them directly
+      if (isMapClick) {
         console.log('🎯 Using provided coords from map click:', coords);
         finalCoords = coords;
         // Extract city/state from existing originCity if available
@@ -111,40 +123,39 @@ export default function HomePage() {
         stateName = viaCepData.uf;
       }
 
-      // Load customers from API (mock for now)
-      console.log('👥 Generating mock customers around:', finalCoords);
-      const mockCustomers: MapCustomer[] = [
-        {
-          id: "1",
-          name: "Cliente A",
-          latitude: finalCoords.lat + 0.01,
-          longitude: finalCoords.lng + 0.01,
-          address: "Rua A, 123",
-          city: cityName || "Cidade",
-          state: stateName || "UF",
-        },
-        {
-          id: "2",
-          name: "Cliente B",
-          latitude: finalCoords.lat - 0.01,
-          longitude: finalCoords.lng - 0.01,
-          address: "Rua B, 456",
-          city: cityName || "Cidade",
-          state: stateName || "UF",
-        },
-        {
-          id: "3",
-          name: "Cliente C",
-          latitude: finalCoords.lat + 0.02,
-          longitude: finalCoords.lng - 0.02,
-          address: "Rua C, 789",
-          city: cityName || "Cidade",
-          state: stateName || "UF",
-        },
-      ];
+      // Load REAL customers from Supabase via API
+      console.log('👥 Loading real customers from database...');
+      const customersResponse = await fetch('/api/customers');
 
-      console.log('✅ Mock customers generated:', mockCustomers.length);
-      setCustomers(mockCustomers);
+      if (!customersResponse.ok) {
+        throw new Error('Erro ao buscar clientes');
+      }
+
+      const customersData = await customersResponse.json();
+      console.log('📦 Customers API response:', customersData);
+
+      // Convert to MapCustomer format
+      const realCustomers: MapCustomer[] = [];
+
+      if (customersData.success && Array.isArray(customersData.data)) {
+        customersData.data.forEach((customer: any) => {
+          if (customer.latitude && customer.longitude) {
+            realCustomers.push({
+              id: customer.id,
+              name: customer.name,
+              latitude: customer.latitude,
+              longitude: customer.longitude,
+              address: customer.full_address || customer.address,
+              city: customer.city,
+              state: customer.state,
+              selected: false,
+            });
+          }
+        });
+      }
+
+      console.log('✅ Real customers loaded from Supabase:', realCustomers.length);
+      setCustomers(realCustomers);
     } catch (error) {
       console.error("Error loading customers:", error);
       alert("Erro ao carregar clientes");
@@ -190,55 +201,246 @@ export default function HomePage() {
       return;
     }
 
+    if (!originCoords) {
+      alert("Por favor, defina um ponto de origem");
+      return;
+    }
+
     setIsOptimizingRoute(true);
     try {
-      // Mock route optimization - create polyline between points
+      console.log('🗺️ Calling /api/routes/optimize...');
+
+      // Get selected customers data
       const selectedCustomers = customers.filter((c) => c.selected);
-      if (originCoords && selectedCustomers.length > 0) {
-        const points: LatLngTuple[] = [
-          [originCoords.lat, originCoords.lng],
-          ...selectedCustomers.map(
-            (c) => [c.latitude!, c.longitude!] as LatLngTuple
-          ),
-          [originCoords.lat, originCoords.lng],
-        ];
-        setRoutePolyline(points);
+
+      // Prepare waypoints for API
+      const waypoints = selectedCustomers.map((customer) => ({
+        lat: customer.latitude!,
+        lng: customer.longitude!,
+        name: customer.name,
+        id: customer.id
+      }));
+
+      console.log('📍 Origin:', originCoords);
+      console.log('📍 Waypoints:', waypoints);
+
+      // Call optimization API with real route calculation
+      const response = await fetch('/api/routes/optimize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          origin: {
+            lat: originCoords.lat,
+            lng: originCoords.lng,
+            cep: origin
+          },
+          waypoints: waypoints,
+          options: {
+            useRealRoutes: true, // Force real routes from Google/OpenRoute
+            returnToOrigin: true,
+            algorithm: 'nearest-neighbor-2opt'
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to optimize route');
+      }
+
+      const data = await response.json();
+      console.log('✅ Route optimized:', data);
+
+      if (data.success && data.route) {
+        // Check if we got real route data or fallback
+        if (data.route.realRoute?.fallback) {
+          console.warn('⚠️ Using fallback route (straight lines)');
+          alert('Aviso: Usando rota simplificada. Serviço de rotas pode estar indisponível.');
+        }
+
+        // Extract coordinates from real route or use fallback
+        let routeCoordinates: LatLngTuple[];
+
+        if (data.route.realRoute?.decodedPath && Array.isArray(data.route.realRoute.decodedPath)) {
+          // Use decoded path from Google Directions or OpenRoute Service (PREFERRED)
+          console.log('🛣️ Using decoded path from routing service');
+          console.log('📊 Decoded path points:', data.route.realRoute.decodedPath.length);
+          routeCoordinates = data.route.realRoute.decodedPath.map(
+            (p: { lat: number; lng: number }) => [p.lat, p.lng] as LatLngTuple
+          );
+        } else if (data.route.realRoute?.coordinates && Array.isArray(data.route.realRoute.coordinates)) {
+          // Alternative format: direct coordinate array
+          console.log('🛣️ Using direct coordinates array');
+          console.log('📊 Coordinate points:', data.route.realRoute.coordinates.length);
+          routeCoordinates = data.route.realRoute.coordinates;
+        } else {
+          // Fallback to optimized waypoint order (straight lines)
+          console.log('⚠️ Falling back to waypoint order (straight lines)');
+          routeCoordinates = data.route.waypoints.map(
+            (wp: { lat: number; lng: number }) => [wp.lat, wp.lng] as LatLngTuple
+          );
+        }
+
+        console.log('📍 Final route has', routeCoordinates.length, 'points');
+        setRoutePolyline(routeCoordinates);
+
+        console.log('📏 Distance:', data.route.totalDistance, 'km');
+        console.log('⏱️ Time:', data.route.estimatedTime, 'min');
+      } else {
+        throw new Error('Invalid response from optimization API');
       }
     } catch (error) {
-      console.error("Error optimizing route:", error);
-      alert("Erro ao otimizar rota");
+      console.error("❌ Error optimizing route:", error);
+      alert("Erro ao otimizar rota. Por favor, tente novamente.");
     } finally {
       setIsOptimizingRoute(false);
     }
-  }, [selectedClients, customers, originCoords]);
+  }, [selectedClients, customers, originCoords, origin]);
 
-  const handleExportRoute = useCallback(() => {
+  const handleExportRoute = useCallback(async () => {
     if (selectedClients.length === 0) {
       alert("Nenhuma rota para exportar");
       return;
     }
 
-    // Mock export functionality
-    const exportData = {
-      origin: { address: originAddress, city: originCity, coords: originCoords },
-      clients: selectedClients,
-      stats,
-    };
+    try {
+      const jsPDF = (await import('jspdf')).default;
+      const doc = new jsPDF();
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `rota-${new Date().toISOString().split("T")[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+      // Configurações
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      let yPos = margin;
+
+      // Header
+      doc.setFillColor(37, 99, 235); // blue-600
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ROTA DE ENTREGA', pageWidth / 2, 20, { align: 'center' });
+
+      yPos = 45;
+      doc.setTextColor(0, 0, 0);
+
+      // Data e Hora
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const now = new Date();
+      doc.text(`Gerado em: ${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR')}`, margin, yPos);
+      yPos += 15;
+
+      // Origem
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ORIGEM', margin, yPos);
+      yPos += 8;
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      if (originAddress) {
+        doc.text(`Endereço: ${originAddress}`, margin, yPos);
+        yPos += 6;
+      }
+      if (originCity) {
+        doc.text(`Cidade: ${originCity}`, margin, yPos);
+        yPos += 6;
+      }
+      if (originCoords) {
+        doc.text(`Coordenadas: ${originCoords.lat.toFixed(6)}, ${originCoords.lng.toFixed(6)}`, margin, yPos);
+        yPos += 10;
+      }
+
+      // Estatísticas
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ESTATÍSTICAS DA ROTA', margin, yPos);
+      yPos += 8;
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Total de Paradas: ${stats.stops}`, margin, yPos);
+      yPos += 6;
+      doc.text(`Distância Total: ${stats.routeDistance}`, margin, yPos);
+      yPos += 6;
+      doc.text(`Tempo Estimado: ${stats.estimatedTime}`, margin, yPos);
+      yPos += 10;
+
+      // Lista de Clientes
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CLIENTES NA ROTA', margin, yPos);
+      yPos += 8;
+
+      // Tabela de clientes
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+
+      selectedClients.forEach((client, index) => {
+        // Verificar se precisa de nova página
+        if (yPos > pageHeight - 40) {
+          doc.addPage();
+          yPos = margin;
+        }
+
+        // Número e nome
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${index + 1}. ${client.name}`, margin, yPos);
+        yPos += 6;
+
+        doc.setFont('helvetica', 'normal');
+
+        // Endereço completo
+        if (client.address) {
+          const lines = doc.splitTextToSize(`   ${client.address}`, pageWidth - 2 * margin);
+          doc.text(lines, margin, yPos);
+          yPos += (lines.length * 5);
+        }
+
+        // Cidade e Estado
+        if (client.city || client.state) {
+          const location = [client.city, client.state].filter(Boolean).join(' - ');
+          doc.text(`   ${location}`, margin, yPos);
+          yPos += 5;
+        }
+
+        yPos += 3; // Espaçamento entre clientes
+      });
+
+      // Footer em todas as páginas
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(128, 128, 128);
+        doc.text(
+          `Página ${i} de ${totalPages} - Gerado pelo Sistema de Rotas`,
+          pageWidth / 2,
+          pageHeight - 10,
+          { align: 'center' }
+        );
+      }
+
+      // Download
+      const fileName = `rota-${now.toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      alert('Erro ao gerar PDF. Por favor, tente novamente.');
+    }
   }, [selectedClients, originAddress, originCity, originCoords, stats]);
 
   const handleClearSelection = useCallback(() => {
+    // Reset EVERYTHING
+    setOrigin("");
+    setOriginCoords(null);
+    setOriginAddress(undefined);
+    setOriginCity(undefined);
+    setCustomers([]);
     setSelectedClients([]);
-    setCustomers((prev) => prev.map((c) => ({ ...c, selected: false })));
     setRoutePolyline(undefined);
   }, []);
 
@@ -466,7 +668,7 @@ export default function HomePage() {
           <div className="col-span-12 lg:col-span-9 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <MapContainer
               originCoords={originCoords}
-              customers={customers}
+              customers={filteredCustomers}
               distanceFilter={distanceFilter}
               onToggleCustomer={handleToggleCustomer}
               onOriginDrag={handleOriginDrag}
