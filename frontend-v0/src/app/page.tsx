@@ -670,7 +670,7 @@ export default function HomePage() {
           </div>
 
           {/* Right Side - Map */}
-          <div className="col-span-12 lg:col-span-9 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="col-span-12 lg:col-span-9 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative z-10">
             <MapContainer
               originCoords={originCoords}
               customers={filteredCustomers}
