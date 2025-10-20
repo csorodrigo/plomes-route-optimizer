@@ -53,7 +53,7 @@ export default function HomePage() {
   };
 
   // Handlers
-  const handleLoadCustomers = useCallback(async (coords?: { lat: number; lng: number }) => {
+  const handleLoadCustomers = useCallback(async (coords?: { lat: number; lng: number }, isFromMapClick?: boolean) => {
     // Use provided coords or current origin
     const coordsToUse = coords || originCoords;
 
@@ -68,8 +68,8 @@ export default function HomePage() {
       let cityName = originCity;
       let stateName = "";
 
-      // Distinguish between map click and manual CEP search
-      const isMapClick = coords && !originCoords;
+      // Check if this is from map click (explicit flag)
+      const isMapClick = isFromMapClick === true;
 
       // If coords were provided from map click, use them directly
       if (isMapClick) {
@@ -506,9 +506,9 @@ export default function HomePage() {
         setOriginAddress(data.address);
         setOriginCity(data.city ? `${data.city} - ${data.state}` : undefined);
 
-        // Load customers after getting CEP (pass coords to avoid state delay)
+        // Load customers after getting CEP (pass coords and flag to indicate map click)
         console.log('👥 Loading customers...');
-        await handleLoadCustomers({ lat, lng });
+        await handleLoadCustomers({ lat, lng }, true);
         console.log('✅ Map click complete!');
       } else {
         console.warn('⚠️ No CEP in response:', data);
