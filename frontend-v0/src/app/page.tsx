@@ -394,6 +394,15 @@ export default function HomePage() {
       doc.setFont('helvetica', 'normal');
 
       selectedClients.forEach((client, index) => {
+        // DEBUG: Log client data
+        console.log(`📋 PDF Cliente ${index + 1}:`, {
+          name: client.name,
+          cnpj: client.cnpj,
+          razao_social: client.razao_social,
+          hasCnpj: !!client.cnpj,
+          hasRazaoSocial: !!client.razao_social
+        });
+
         // Verificar se precisa de nova página
         if (yPos > pageHeight - 40) {
           doc.addPage();
@@ -411,14 +420,18 @@ export default function HomePage() {
 
         // Razão Social
         if (client.razao_social) {
+          console.log(`✅ Adding Razão Social: ${client.razao_social}`);
           doc.text(`   Razão Social: ${client.razao_social}`, margin, yPos);
           yPos += 5;
         }
 
         // CNPJ
         if (client.cnpj) {
+          console.log(`✅ Adding CNPJ: ${client.cnpj}`);
           doc.text(`   CNPJ: ${client.cnpj}`, margin, yPos);
           yPos += 5;
+        } else {
+          console.log(`❌ NO CNPJ for ${client.name}`);
         }
 
         doc.setFontSize(10);
