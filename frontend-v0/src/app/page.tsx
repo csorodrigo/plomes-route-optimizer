@@ -391,6 +391,8 @@ export default function HomePage() {
       doc.text('CLIENTES NA ROTA', margin, yPos);
       yPos += 8;
 
+      // Force rebuild timestamp: 2025-11-11 11:05
+
       // Tabela de clientes
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
