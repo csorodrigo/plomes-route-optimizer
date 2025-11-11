@@ -406,6 +406,23 @@ export default function HomePage() {
         yPos += 6;
 
         doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 100);
+
+        // Razão Social
+        if (client.razao_social) {
+          doc.text(`   Razão Social: ${client.razao_social}`, margin, yPos);
+          yPos += 5;
+        }
+
+        // CNPJ
+        if (client.cnpj) {
+          doc.text(`   CNPJ: ${client.cnpj}`, margin, yPos);
+          yPos += 5;
+        }
+
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
 
         // Endereço completo
         if (client.address) {
