@@ -185,6 +185,8 @@ export default function HomePage() {
           {
             id: customer.id,
             name: customer.name,
+            razao_social: customer.razao_social,
+            cnpj: customer.cnpj,
             address: customer.address,
             city: customer.city,
             state: customer.state,
