@@ -16,10 +16,10 @@ export async function middleware(req: NextRequest) {
   // For protected routes, we'll rely on the AuthProvider to handle authentication
   // This simple middleware just ensures we have the basic routing in place
 
-  // Redirect root to dashboard cliente
+  // Redirect root to route optimizer
   if (pathname === '/') {
     const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = '/dashboard/cliente';
+    redirectUrl.pathname = '/rota-cep';
     return NextResponse.redirect(redirectUrl);
   }
 
