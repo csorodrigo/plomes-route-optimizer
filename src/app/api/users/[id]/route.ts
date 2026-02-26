@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { env } from "@/lib/env.server";
 import bcrypt from 'bcryptjs';
 
+function normalizeRole(role: string | null | undefined) {
+  if (role === 'user' || role === 'usuario') return 'usuario_padrao';
+  return role ?? 'usuario_padrao';
+}
+
 /**
  * Update user
  */
@@ -16,7 +21,7 @@ export async function PUT(
     console.log(`👥 Users API - UPDATE user ${userId}`);
 
     const body = await request.json();
-    const { email, name, password, role } = body;
+    const { email, name, password, role, ploomes_person_id } = body;
 
     const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
 
@@ -25,18 +30,63 @@ export async function PUT(
     if (email) updates.email = email;
     if (name) updates.name = name;
     if (role) updates.role = role;
+    if (Object.prototype.hasOwnProperty.call(body, 'ploomes_person_id')) {
+      updates.ploomes_person_id = ploomes_person_id ? Number(ploomes_person_id) : null;
+    }
     if (password) {
       updates.password_hash = await bcrypt.hash(password, 10);
     }
     updates.updated_at = new Date().toISOString();
 
     // Update user
-    const { data: updatedUser, error } = await supabase
+    let updatedUser: any = null;
+    let error: any = null;
+
+    const primaryUpdate = await supabase
       .from('users')
       .update(updates)
       .eq('id', userId)
-      .select('id, email, name, role, updated_at')
+      .select('id, email, name, role, ploomes_person_id, updated_at')
       .single();
+
+    updatedUser = primaryUpdate.data;
+    error = primaryUpdate.error;
+
+    if (error?.code === '42703' || error?.code === 'PGRST204') {
+      const { ploomes_person_id: _ignored, ...fallbackUpdates } = updates;
+
+      if (role === 'usuario_vendedor') {
+        return NextResponse.json(
+          { success: false, message: 'Migration pendente: coluna users.ploomes_person_id não existe' },
+          { status: 503 }
+        );
+      }
+
+      const fallbackUpdate = await supabase
+        .from('users')
+        .update(fallbackUpdates)
+        .eq('id', userId)
+        .select('id, email, name, role, updated_at')
+        .single();
+
+      updatedUser = fallbackUpdate.data ? { ...fallbackUpdate.data, ploomes_person_id: null } : null;
+      error = fallbackUpdate.error;
+    }
+
+    if (error?.code === '23514' && role === 'usuario_padrao') {
+      const { ploomes_person_id: _ignored, ...fallbackUpdates } = updates;
+      (fallbackUpdates as any).role = 'user';
+
+      const fallbackCompat = await supabase
+        .from('users')
+        .update(fallbackUpdates)
+        .eq('id', userId)
+        .select('id, email, name, role, updated_at')
+        .single();
+
+      updatedUser = fallbackCompat.data ? { ...fallbackCompat.data, ploomes_person_id: null } : null;
+      error = fallbackCompat.error;
+    }
 
     if (error) {
       console.error('[USERS API] Error updating user:', error);
@@ -47,7 +97,7 @@ export async function PUT(
 
     return NextResponse.json({
       success: true,
-      data: updatedUser,
+      data: { ...updatedUser, role: normalizeRole(updatedUser.role) },
       message: 'User updated successfully'
     });
 

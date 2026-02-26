@@ -9,12 +9,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, Edit2, Trash2, X } from "lucide-react";
 
+type AppRole = "admin" | "usuario_padrao" | "usuario_vendedor";
+
 interface User {
   id: number;
   email: string;
   name: string;
-  role: string;
+  role: AppRole | string;
+  ploomes_person_id?: number | null;
   created_at: string;
+}
+
+interface PloomesUserOption {
+  id: number;
+  name: string;
+  email: string | null;
 }
 
 export default function UsersPage() {
@@ -28,9 +37,25 @@ export default function UsersPage() {
     email: "",
     name: "",
     password: "",
-    role: "user"
+    role: "usuario_padrao" as AppRole,
+    ploomes_person_id: ""
   });
+  const [ploomesUsers, setPloomesUsers] = useState<PloomesUserOption[]>([]);
+  const [loadingPloomesUsers, setLoadingPloomesUsers] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const isAdmin = auth.user?.role === "admin";
+
+  const fetchWithAuth = (input: RequestInfo | URL, init?: RequestInit) => {
+    const token = typeof window !== "undefined" ? window.localStorage.getItem("auth_token") : null;
+    const headers = new Headers(init?.headers);
+
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    return fetch(input, { ...init, headers });
+  };
 
   useEffect(() => {
     if (auth.isAuthenticated) {
@@ -38,10 +63,22 @@ export default function UsersPage() {
     }
   }, [auth.isAuthenticated]);
 
+  useEffect(() => {
+    if (!showForm || formData.role !== "usuario_vendedor" || !isAdmin) {
+      return;
+    }
+
+    if (ploomesUsers.length > 0) {
+      return;
+    }
+
+    loadPloomesUsers();
+  }, [showForm, formData.role, isAdmin, ploomesUsers.length]);
+
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/users");
+      const response = await fetchWithAuth("/api/users");
       const data = await response.json();
 
       if (data.success) {
@@ -62,17 +99,66 @@ export default function UsersPage() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const loadPloomesUsers = async () => {
+    try {
+      setLoadingPloomesUsers(true);
+      const response = await fetchWithAuth("/api/ploomes/users");
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Erro ao carregar usuários do Ploomes");
+      }
+
+      setPloomesUsers(Array.isArray(data.data) ? data.data : []);
+    } catch (error) {
+      console.error("Error loading Ploomes users:", error);
+      showMessage("error", "Erro ao carregar vendedores do Ploomes");
+    } finally {
+      setLoadingPloomesUsers(false);
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "Admin";
+      case "usuario_vendedor":
+        return "Usuário Vendedor";
+      case "usuario_padrao":
+        return "Usuário Padrão";
+      default:
+        return role;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      const url = editingUser ? `/api/users/${editingUser.id}` : "/api/users";
+      const isCreating = !editingUser;
+      const url = editingUser ? `/api/users/${editingUser.id}` : "/api/admin/create-user";
       const method = editingUser ? "PUT" : "POST";
+      const role = formData.role as AppRole;
+      const payload = {
+        email: formData.email,
+        name: formData.name,
+        password: formData.password,
+        role,
+        ploomes_person_id:
+          role === "usuario_vendedor" && formData.ploomes_person_id
+            ? Number(formData.ploomes_person_id)
+            : null,
+      };
 
-      const response = await fetch(url, {
+      if (isCreating && role === "usuario_vendedor" && !payload.ploomes_person_id) {
+        showMessage("error", "Selecione um vendedor do Ploomes");
+        return;
+      }
+
+      const response = await fetchWithAuth(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -96,7 +182,8 @@ export default function UsersPage() {
       email: user.email,
       name: user.name,
       password: "",
-      role: user.role
+      role: (user.role as AppRole) || "usuario_padrao",
+      ploomes_person_id: user.ploomes_person_id ? String(user.ploomes_person_id) : ""
     });
     setShowForm(true);
   };
@@ -105,7 +192,7 @@ export default function UsersPage() {
     if (!confirm("Tem certeza que deseja deletar este usuário?")) return;
 
     try {
-      const response = await fetch(`/api/users/${userId}`, {
+      const response = await fetchWithAuth(`/api/users/${userId}`, {
         method: "DELETE"
       });
 
@@ -130,7 +217,8 @@ export default function UsersPage() {
       email: "",
       name: "",
       password: "",
-      role: "user"
+      role: "usuario_padrao",
+      ploomes_person_id: ""
     });
   };
 
@@ -140,7 +228,8 @@ export default function UsersPage() {
       email: "",
       name: "",
       password: "",
-      role: "user"
+      role: "usuario_padrao",
+      ploomes_person_id: ""
     });
     setShowForm(true);
   };
@@ -165,13 +254,15 @@ export default function UsersPage() {
             </Button>
             <h1 className="text-3xl font-bold text-slate-800">Gerenciar Usuários</h1>
           </div>
-          <Button
-            onClick={openNewUserForm}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            Novo Usuário
-          </Button>
+          {isAdmin && (
+            <Button
+              onClick={openNewUserForm}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              Novo Usuário
+            </Button>
+          )}
         </div>
 
         {/* Message */}
@@ -239,14 +330,37 @@ export default function UsersPage() {
                     <select
                       id="role"
                       value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value as AppRole })}
                       className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="user">Usuário</option>
+                      <option value="usuario_padrao">Usuário Padrão</option>
+                      <option value="usuario_vendedor">Usuário Vendedor</option>
                       <option value="admin">Administrador</option>
                     </select>
                   </div>
                 </div>
+                {formData.role === "usuario_vendedor" && (
+                  <div>
+                    <Label htmlFor="ploomes_person_id">Vendedor no Ploomes</Label>
+                    <select
+                      id="ploomes_person_id"
+                      value={formData.ploomes_person_id}
+                      onChange={(e) => setFormData({ ...formData, ploomes_person_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required={!editingUser}
+                    >
+                      <option value="">
+                        {loadingPloomesUsers ? "Carregando vendedores..." : "Selecione um vendedor"}
+                      </option>
+                      {ploomesUsers.map((ploomesUser) => (
+                        <option key={ploomesUser.id} value={ploomesUser.id}>
+                          {ploomesUser.name}
+                          {ploomesUser.email ? ` (${ploomesUser.email})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={closeForm}>
                     Cancelar
@@ -304,10 +418,12 @@ export default function UsersPage() {
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
                               user.role === "admin"
                                 ? "bg-purple-100 text-purple-800"
-                                : "bg-blue-100 text-blue-800"
+                                : user.role === "usuario_vendedor"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-blue-100 text-blue-800"
                             }`}
                           >
-                            {user.role === "admin" ? "Admin" : "Usuário"}
+                            {getRoleLabel(user.role)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">

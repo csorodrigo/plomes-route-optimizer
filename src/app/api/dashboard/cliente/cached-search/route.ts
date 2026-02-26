@@ -1,5 +1,61 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from '@supabase/supabase-js';
+import jwt from 'jsonwebtoken';
+import { env } from "@/lib/env.server";
+
+type JwtPayload = {
+  userId: number;
+  email: string;
+  name?: string;
+  role?: string;
+  ploomesPersonId?: number | null;
+};
+
+function normalizeRole(role: string | null | undefined) {
+  if (role === 'user' || role === 'usuario') return 'usuario_padrao';
+  return role ?? null;
+}
+
+async function getRequesterContext(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.slice(7);
+  const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key-for-development-only";
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+    let dbUser: any = null;
+
+    const primaryQuery = await supabase
+      .from('users')
+      .select('role, ploomes_person_id')
+      .eq('id', decoded.userId)
+      .single();
+
+    if (primaryQuery.error?.code === '42703' || primaryQuery.error?.code === 'PGRST204') {
+      const fallbackQuery = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', decoded.userId)
+        .single();
+      dbUser = fallbackQuery.data ? { ...fallbackQuery.data, ploomes_person_id: null } : null;
+    } else {
+      dbUser = primaryQuery.data;
+    }
+
+    return {
+      userId: decoded.userId,
+      role: normalizeRole(dbUser?.role ?? decoded.role ?? null),
+      ploomesPersonId: dbUser?.ploomes_person_id ?? decoded.ploomesPersonId ?? null,
+    };
+  } catch {
+    return { invalid: true as const };
+  }
+}
 
 /**
  * Get customer details using cached/synced data from Supabase
@@ -9,8 +65,17 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query');
+    const requester = await getRequesterContext(request);
 
-    if (!query) {
+    if (requester && 'invalid' in requester) {
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      );
+    }
+    const authUser = requester ?? null;
+
+    if (query === null) {
       return NextResponse.json(
         { error: "Query parameter is required" },
         { status: 400 }
@@ -20,19 +85,69 @@ export async function GET(request: NextRequest) {
     console.log(`🔍 [CACHED SEARCH] Searching for customer: ${query}`);
 
     // Initialize Supabase - use server env vars first, fallback to public
-    const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
+    const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY!;
 
     console.log('🔧 [CACHED SEARCH] Using Supabase URL:', SUPABASE_URL ? 'OK' : 'MISSING');
     console.log('🔧 [CACHED SEARCH] Using Supabase Key:', SUPABASE_KEY ? 'OK' : 'MISSING');
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    let sellerCustomerIds: number[] | null = null;
+    if (authUser?.role === 'usuario_vendedor') {
+      if (!authUser.ploomesPersonId) {
+        return NextResponse.json(
+          { error: 'Usuário vendedor sem vínculo Ploomes configurado' },
+          { status: 403 }
+        );
+      }
+
+      const { data: sellerSales, error: sellerSalesError } = await supabase
+        .from('sales')
+        .select('customer_id')
+        .eq('owner_id', authUser.ploomesPersonId);
+
+      if (sellerSalesError) {
+        if ((sellerSalesError as any).code === '42703' || (sellerSalesError as any).code === 'PGRST204') {
+          return NextResponse.json(
+            { error: 'Migration pendente: coluna sales.owner_id não existe' },
+            { status: 503 }
+          );
+        }
+        console.error('[CACHED SEARCH] Seller sales filter error:', sellerSalesError);
+        return NextResponse.json(
+          { error: 'Erro ao filtrar clientes do vendedor' },
+          { status: 500 }
+        );
+      }
+
+      sellerCustomerIds = Array.from(
+        new Set(
+          (sellerSales || [])
+            .map((sale: any) => Number(sale.customer_id))
+            .filter((id) => Number.isInteger(id))
+        )
+      );
+
+      if (sellerCustomerIds.length === 0) {
+        return NextResponse.json(
+          { error: "Cliente não encontrado" },
+          { status: 404 }
+        );
+      }
+    }
+
     // Search customers in Supabase (much faster than Ploomes)
-    const { data: customersData, error: customerError } = await supabase
+    let customerQuery = supabase
       .from('customers')
-      .select('id, name, cnpj, cpf, email, phone, tags')
+      .select('id, name, cnpj, cpf, email, phone, tags, address, city, state, latitude, longitude')
       .or(`name.ilike.%${query}%,cnpj.ilike.%${query}%,cpf.ilike.%${query}%`)
       .limit(10);
+
+    if (sellerCustomerIds) {
+      customerQuery = customerQuery.in('id', sellerCustomerIds);
+    }
+
+    const { data: customersData, error: customerError } = await customerQuery;
 
     if (customerError) {
       console.error('[CACHED SEARCH] Customer search error:', customerError);
@@ -139,7 +254,12 @@ export async function GET(request: NextRequest) {
             name: customer.name || 'Sem nome',
             email: customer.email || null,
             phone: customer.phone || null,
-            cnpj: customer.cnpj || customer.cpf || null
+            cnpj: customer.cnpj || customer.cpf || null,
+            address: customer.address || null,
+            city: customer.city || null,
+            state: customer.state || null,
+            latitude: customer.latitude ?? null,
+            longitude: customer.longitude ?? null,
           },
           deals: deals,
           summary: {
@@ -159,7 +279,12 @@ export async function GET(request: NextRequest) {
             name: customer.name || 'Sem nome',
             email: customer.email || null,
             phone: customer.phone || null,
-            cnpj: customer.cnpj || customer.cpf || null
+            cnpj: customer.cnpj || customer.cpf || null,
+            address: customer.address || null,
+            city: customer.city || null,
+            state: customer.state || null,
+            latitude: customer.latitude ?? null,
+            longitude: customer.longitude ?? null,
           },
           deals: [],
           summary: {

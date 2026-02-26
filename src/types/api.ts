@@ -8,6 +8,8 @@ export interface User {
   id: number;
   email: string;
   name: string;
+  role?: 'admin' | 'usuario_padrao' | 'usuario_vendedor';
+  ploomesPersonId?: number | null;
   lastLogin?: string; // Optional to handle existing users without this field
 }
 
