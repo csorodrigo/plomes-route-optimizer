@@ -25,8 +25,9 @@ Execute these steps **every time** a new session begins:
    - Read `.agents/memory/pending.md` → check for unfinished tasks.
 
 2. **Check for stale contexts**:
-   - Run `git diff --name-only` comparing file modification dates against `.context.md` timestamps.
-   - List any directories where source files changed but `.context.md` was not updated.
+   - Read each `.context.md` file's `updated=` date from its `<context>` tag.
+   - Compare against the modification dates of files in the same directory.
+   - List any directories where source files appear newer than the `updated=` date.
 
 3. **Present the session briefing** to the user:
    ```

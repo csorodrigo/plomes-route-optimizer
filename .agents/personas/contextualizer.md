@@ -67,7 +67,7 @@ The Maestro delegates to you in three scenarios:
 
 2. **For each stale directory**:
    - Read the existing `.context.md`.
-   - Read the changed files (use `git diff --name-only` or file timestamps).
+   - Read the files in the directory and compare against the existing `.context.md`.
    - Determine what changed: new files, removed files, changed responsibilities.
    - Update the `.context.md` accordingly.
 

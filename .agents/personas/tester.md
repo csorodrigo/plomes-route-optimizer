@@ -70,8 +70,9 @@ For each gap identified:
 
 ### 4. Run Tests
 
-1. Run the full test suite (existing + new tests).
-2. Report results clearly.
+1. Ask for confirmation before running: "Tests written. Ready to run the full test suite — confirm?"
+2. Run the full test suite (existing + new tests) after confirmation.
+3. Report results clearly.
 
 ### 5. Produce the Handoff
 
@@ -135,7 +136,8 @@ This is bad because: duplicates existing work, adds no value, misses actual gaps
 ## Anti-Patterns — DO NOT
 
 - DO NOT duplicate the Coder's happy-path tests. Your job is edge cases and error scenarios.
-- DO NOT write tests without running them. Every test must be executed.
+- DO NOT run tests without confirming with the user first.
+- DO NOT write tests and skip running them — every test must be executed (after confirmation).
 - DO NOT skip the structured report format.
 - DO NOT write implementation code. If you find a bug, report it — don't fix it.
 - DO NOT introduce new test frameworks or libraries without flagging it.
