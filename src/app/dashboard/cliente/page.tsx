@@ -115,6 +115,17 @@ export default function CustomerDashboard() {
   const [showResults, setShowResults] = useState(false);
   const [searchMode, setSearchMode] = useState<'customer' | 'product' | 'both'>('customer');
 
+  const fetchWithAuth = (input: RequestInfo | URL, init?: RequestInit) => {
+    const token = typeof window !== 'undefined' ? window.localStorage.getItem('auth_token') : null;
+    const headers = new Headers(init?.headers);
+
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    return fetch(input, { ...init, headers });
+  };
+
   const handleSearch = async () => {
     if (!searchTerm.trim() && !productSearchTerm.trim()) {
       setError("Por favor, digite o nome do cliente ou do produto para buscar");
@@ -159,7 +170,7 @@ export default function CustomerDashboard() {
 
   // Busca apenas por cliente (comportamento original)
   const handleCustomerOnlySearch = async () => {
-    const response = await fetch(`/api/dashboard/cliente/cached-search?query=${encodeURIComponent(searchTerm)}`);
+    const response = await fetchWithAuth(`/api/dashboard/cliente/cached-search?query=${encodeURIComponent(searchTerm)}`);
 
     if (!response.ok) {
       throw new Error("Cliente não encontrado");
@@ -249,7 +260,7 @@ export default function CustomerDashboard() {
   // Busca combinada: produto específico de um cliente específico
   const handleCombinedSearch = async () => {
     // First, search for the customer
-    const customerResponse = await fetch(`/api/dashboard/cliente/cached-search?query=${encodeURIComponent(searchTerm)}`);
+    const customerResponse = await fetchWithAuth(`/api/dashboard/cliente/cached-search?query=${encodeURIComponent(searchTerm)}`);
 
     if (!customerResponse.ok) {
       throw new Error("Cliente não encontrado");

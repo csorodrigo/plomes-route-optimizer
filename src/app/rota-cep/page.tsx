@@ -31,6 +31,17 @@ export default function RotaCepPage() {
   const [error, setError] = useState<string | null>(null);
   const [reverseGeocodingLoading, setReverseGeocodingLoading] = useState(false);
 
+  const fetchWithAuth = (input: RequestInfo | URL, init?: RequestInit) => {
+    const token = typeof window !== 'undefined' ? window.localStorage.getItem('auth_token') : null;
+    const headers = new Headers(init?.headers);
+
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    return fetch(input, { ...init, headers });
+  };
+
   // Filter customers by distance whenever origin or distance filter changes
   useEffect(() => {
     if (originCoords && customers.length > 0) {
@@ -127,7 +138,7 @@ export default function RotaCepPage() {
   const searchCustomersNearby = async (lat: number, lng: number) => {
     try {
       // Fetch all customers (in a real app, you'd filter server-side)
-      const response = await fetch("/api/dashboard/cliente/cached-search?query=");
+      const response = await fetchWithAuth("/api/dashboard/cliente/cached-search?query=");
 
       if (!response.ok) {
         throw new Error("Erro ao buscar clientes");

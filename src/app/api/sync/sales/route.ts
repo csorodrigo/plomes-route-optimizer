@@ -25,15 +25,31 @@ export async function POST(request: NextRequest) {
     // Process sales in batches
     for (const sale of sales) {
       try {
-        const { error } = await supabase
+        const normalizedSale = {
+          ...sale,
+          person_id: sale.person_id ?? sale.personId ?? null,
+          owner_id: sale.owner_id ?? sale.ownerId ?? null,
+        };
+
+        let { error } = await supabase
           .from('sales')
-          .upsert(sale, {
+          .upsert(normalizedSale, {
             onConflict: 'ploomes_deal_id'
           });
 
+        if ((error as any)?.code === '42703' || (error as any)?.code === 'PGRST204') {
+          const { person_id, owner_id, ...fallbackSale } = normalizedSale as any;
+          const retry = await supabase
+            .from('sales')
+            .upsert(fallbackSale, {
+              onConflict: 'ploomes_deal_id'
+            });
+          error = retry.error;
+        }
+
         if (error) {
           errorCount++;
-          errors.push({ sale: sale.ploomes_deal_id, error: error.message });
+          errors.push({ sale: normalizedSale.ploomes_deal_id, error: error.message });
         } else {
           successCount++;
         }

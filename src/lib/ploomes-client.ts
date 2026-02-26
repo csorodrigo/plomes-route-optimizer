@@ -61,6 +61,7 @@ interface PloomesDeal {
   StatusId: number;
   StageId: number;
   PersonId?: number;
+  OwnerId?: number;
   CompanyId?: number;
   CreatedDate: string;
   LastInteractionDate?: string;
@@ -451,7 +452,7 @@ class PloomesClient {
           options: {
             top: 2000, // Increased from 500 to catch more deals
             orderby: 'CreatedDate desc',
-            select: ['Id', 'Title', 'Amount', 'CreatedDate', 'FinishDate', 'StageId', 'ContactId', 'StatusId']
+            select: ['Id', 'Title', 'Amount', 'CreatedDate', 'FinishDate', 'StageId', 'ContactId', 'StatusId', 'PersonId', 'OwnerId']
           }
         },
         // Approach 2: Won deals (if customer has closed deals)
@@ -461,7 +462,7 @@ class PloomesClient {
             filter: 'StatusId eq 2', // Won deals
             top: 1000, // Increased from 300
             orderby: 'CreatedDate desc',
-            select: ['Id', 'Title', 'Amount', 'CreatedDate', 'FinishDate', 'StageId', 'ContactId', 'StatusId']
+            select: ['Id', 'Title', 'Amount', 'CreatedDate', 'FinishDate', 'StageId', 'ContactId', 'StatusId', 'PersonId', 'OwnerId']
           }
         }
       ];
@@ -497,6 +498,8 @@ class PloomesClient {
                 StatusId: deal.StatusId,
                 StageId: deal.StageId,
                 ContactId: deal.ContactId,
+                PersonId: deal.PersonId,
+                OwnerId: deal.OwnerId,
                 CreatedDate: deal.LastUpdateDate, // Use LastUpdateDate as CreatedDate for cached data
                 FinishDate: null,
                 Products: deal.Products || []
@@ -524,6 +527,8 @@ class PloomesClient {
           StatusId: deal.StatusId,
           StageId: deal.StageId,
           ContactId: deal.ContactId,
+          PersonId: deal.PersonId,
+          OwnerId: deal.OwnerId,
           CreatedDate: deal.LastUpdateDate,
           FinishDate: null,
           Products: deal.Products || []
