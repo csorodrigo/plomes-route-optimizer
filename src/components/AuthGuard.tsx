@@ -20,7 +20,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
         router.push('/login');
       } else if (user && pathname === '/login') {
         // Redirect authenticated users away from login page
-        router.push('/dashboard/cliente');
+        router.push('/rota-cep');
       }
     }
   }, [user, loading, pathname, router]);
