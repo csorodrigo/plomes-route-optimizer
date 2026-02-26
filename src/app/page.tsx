@@ -7,15 +7,14 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redireciona automaticamente para dashboard de clientes
-    router.push("/dashboard/cliente");
+    router.push("/rota-cep");
   }, [router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-        <p className="text-gray-600">Redirecionando para dashboard...</p>
+        <p className="text-gray-600">Redirecionando...</p>
       </div>
     </div>
   );
