@@ -1,26 +1,86 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from 'bcryptjs';
-import { supabaseServer } from "@/lib/supabase-server";
+import jwt from 'jsonwebtoken';
+import { createClient } from '@supabase/supabase-js';
+import { env } from "@/lib/env.server";
+import { findPloomesUserByEmail } from "@/lib/ploomes-user-link";
 
 interface CreateUserRequest {
   email: string;
   password: string;
   name: string;
-  adminKey?: string;
+  role?: 'admin' | 'usuario_padrao' | 'usuario_vendedor';
+  ploomes_person_id?: number | null;
+}
+
+type JwtPayload = {
+  userId: number;
+  email: string;
+  name?: string;
+  role?: string;
+};
+
+function normalizeRole(role: string | null | undefined) {
+  if (role === 'user' || role === 'usuario') return 'usuario_padrao';
+  return role ?? 'usuario_padrao';
+}
+
+async function requireAdmin(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+
+  if (!authHeader?.startsWith('Bearer ')) {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 }),
+    };
+  }
+
+  const token = authHeader.slice(7);
+  const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key-for-development-only";
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, role')
+      .eq('id', decoded.userId)
+      .single();
+
+    if (error || !user) {
+      return {
+        ok: false as const,
+        response: NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 }),
+      };
+    }
+
+    if (user.role !== 'admin') {
+      return {
+        ok: false as const,
+        response: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }),
+      };
+    }
+
+    return { ok: true as const, user };
+  } catch {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ success: false, error: 'Invalid token' }, { status: 401 }),
+    };
+  }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body: CreateUserRequest = await request.json();
-    const { email, password, name, adminKey } = body;
-
-    // Validação básica de segurança - apenas para desenvolvimento
-    if (adminKey !== 'create-user-admin-2025') {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const adminAuth = await requireAdmin(request);
+    if (!adminAuth.ok) {
+      return adminAuth.response;
     }
+
+    const body: CreateUserRequest = await request.json();
+    const { email, password, name } = body;
+    const role = body.role ?? 'usuario_padrao';
+    const validRoles = new Set(['admin', 'usuario_padrao', 'usuario_vendedor']);
 
     if (!email || !password || !name) {
       return NextResponse.json(
@@ -29,49 +89,135 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!validRoles.has(role)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid role' },
+        { status: 400 }
+      );
+    }
+
+    const providedPloomesPersonId =
+      body.ploomes_person_id == null ? null : Number(body.ploomes_person_id);
+    const autoLinkedPloomesUser =
+      providedPloomesPersonId == null || !Number.isInteger(providedPloomesPersonId) || providedPloomesPersonId <= 0
+        ? await findPloomesUserByEmail(email)
+        : null;
+    const ploomesPersonId =
+      Number.isInteger(providedPloomesPersonId) && (providedPloomesPersonId as number) > 0
+        ? (providedPloomesPersonId as number)
+        : (autoLinkedPloomesUser?.id ?? null);
+
+    if (
+      role === 'usuario_vendedor' &&
+      (ploomesPersonId == null || !Number.isInteger(ploomesPersonId) || ploomesPersonId <= 0)
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'ploomes_person_id is required for usuario_vendedor' },
+        { status: 400 }
+      );
+    }
+
     console.log(`🔨 Creating user: ${email}`);
+    if (autoLinkedPloomesUser) {
+      console.log('🔗 Auto-linked user to Ploomes by email:', {
+        email,
+        ploomesPersonId: autoLinkedPloomesUser.id,
+        ploomesName: autoLinkedPloomesUser.name
+      });
+    }
 
     // Hash da senha
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
     console.log(`🔐 Password hash generated (${passwordHash.length} chars)`);
 
-    // SQL para inserir ou atualizar usuário
-    const sql = `
-      INSERT INTO users (email, name, password_hash, role, created_at)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (email) DO UPDATE SET
-        password_hash = EXCLUDED.password_hash,
-        name = EXCLUDED.name,
-        role = EXCLUDED.role,
-        updated_at = NOW()
-      RETURNING id, email, name, role, created_at;
-    `;
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+    const timestamp = new Date().toISOString();
+    let user: any = null;
+    let error: any = null;
 
-    const values = [
-      email.toLowerCase(),
-      name,
-      passwordHash,
-      'admin',
-      new Date().toISOString()
-    ];
+    const primaryWrite = await supabase
+      .from('users')
+      .upsert(
+        {
+          email: email.toLowerCase(),
+          name,
+          password_hash: passwordHash,
+          role,
+          ploomes_person_id: ploomesPersonId,
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+        { onConflict: 'email' }
+      )
+      .select('id, email, name, role, ploomes_person_id, created_at')
+      .single();
 
-    const result = await supabaseServer.sql(sql, values);
+    user = primaryWrite.data;
+    error = primaryWrite.error;
 
-    if (result.error) {
-      console.error('❌ Error creating user:', result.error);
+    if (error?.code === '42703' || error?.code === 'PGRST204') {
+      if (role === 'usuario_vendedor') {
+        return NextResponse.json(
+          { success: false, error: 'Migration pendente: coluna users.ploomes_person_id não existe' },
+          { status: 503 }
+        );
+      }
+
+      const fallbackWrite = await supabase
+        .from('users')
+        .upsert(
+          {
+            email: email.toLowerCase(),
+            name,
+            password_hash: passwordHash,
+            role,
+            created_at: timestamp,
+            updated_at: timestamp,
+          },
+          { onConflict: 'email' }
+        )
+        .select('id, email, name, role, created_at')
+        .single();
+
+      user = fallbackWrite.data ? { ...fallbackWrite.data, ploomes_person_id: null } : null;
+      error = fallbackWrite.error;
+    }
+
+    if (error?.code === '23514' && role === 'usuario_padrao') {
+      const fallbackCompat = await supabase
+        .from('users')
+        .upsert(
+          {
+            email: email.toLowerCase(),
+            name,
+            password_hash: passwordHash,
+            role: 'user',
+            created_at: timestamp,
+            updated_at: timestamp,
+          },
+          { onConflict: 'email' }
+        )
+        .select('id, email, name, role, created_at')
+        .single();
+
+      user = fallbackCompat.data ? { ...fallbackCompat.data, ploomes_person_id: null } : null;
+      error = fallbackCompat.error;
+    }
+
+    if (error || !user) {
+      console.error('❌ Error creating user:', error);
       return NextResponse.json(
-        { success: false, error: result.error.message },
+        { success: false, error: error?.message || 'Failed to create user' },
         { status: 500 }
       );
     }
-
-    const user = (result.data as any[])[0];
     console.log('✅ User created successfully:', {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role
+      role: normalizeRole(user.role),
+      ploomes_person_id: user.ploomes_person_id
     });
 
     // Testar login imediatamente
@@ -85,10 +231,12 @@ export async function POST(request: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: normalizeRole(user.role),
+        ploomes_person_id: user.ploomes_person_id,
         created_at: user.created_at
       },
-      passwordValidation: validPassword
+      passwordValidation: validPassword,
+      autoLinkedPloomesUser
     });
 
   } catch (error) {
@@ -106,6 +254,6 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     message: 'User creation endpoint',
-    usage: 'POST with { email, password, name, adminKey }'
+    usage: 'POST with Bearer token and { email, password, name, role, ploomes_person_id? }'
   });
 }

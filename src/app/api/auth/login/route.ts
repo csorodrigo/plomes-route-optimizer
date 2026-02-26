@@ -9,6 +9,11 @@ interface LoginRequestBody {
   password: string;
 }
 
+function normalizeRole(role: string | null | undefined) {
+  if (role === 'user' || role === 'usuario') return 'usuario_padrao';
+  return role ?? 'usuario_padrao';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: LoginRequestBody = await request.json();
@@ -34,11 +39,28 @@ export async function POST(request: NextRequest) {
       env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4d29rcnl5YnVkd3lndGVtZm11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg3NDE2ODEsImV4cCI6MjA3NDMxNzY4MX0.ALgRRp1FivPIQ7TltZF7HPDS2d12RNAxTnc_BfRmJUg'
     );
 
-    const { data: user, error: dbError } = await supabase
+    let user: any = null;
+    let dbError: any = null;
+
+    const primaryQuery = await supabase
       .from('users')
-      .select('id, email, name, password_hash, role')
+      .select('id, email, name, password_hash, role, ploomes_person_id')
       .eq('email', email.toLowerCase())
       .single();
+
+    user = primaryQuery.data;
+    dbError = primaryQuery.error;
+
+    if (dbError?.code === '42703' || dbError?.code === 'PGRST204') {
+      const fallbackQuery = await supabase
+        .from('users')
+        .select('id, email, name, password_hash, role')
+        .eq('email', email.toLowerCase())
+        .single();
+
+      user = fallbackQuery.data ? { ...fallbackQuery.data, ploomes_person_id: null } : null;
+      dbError = fallbackQuery.error;
+    }
 
     if (dbError || !user) {
       console.log(`❌ User not found: ${email}`, dbError);
@@ -78,7 +100,9 @@ export async function POST(request: NextRequest) {
       {
         userId: user.id,
         email: user.email,
-        name: user.name
+        name: user.name,
+        role: normalizeRole(user.role),
+        ploomesPersonId: user.ploomes_person_id ?? null
       },
       JWT_SECRET,
       { expiresIn: '7d' }
@@ -94,6 +118,8 @@ export async function POST(request: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.name,
+        role: normalizeRole(user.role),
+        ploomesPersonId: user.ploomes_person_id ?? null,
         lastLogin: new Date().toISOString()
       }
     });

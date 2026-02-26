@@ -7,6 +7,8 @@ interface AuthUser {
   id: number;
   email: string;
   name: string;
+  role?: 'admin' | 'usuario_padrao' | 'usuario_vendedor';
+  ploomesPersonId?: number | null;
   lastLogin?: string;
 }
 

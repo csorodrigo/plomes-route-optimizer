@@ -130,6 +130,8 @@ export interface LoginResponse {
     id: number;
     email: string;
     name: string;
+    role?: 'admin' | 'usuario_padrao' | 'usuario_vendedor';
+    ploomesPersonId?: number | null;
     lastLogin: string;
   };
 }
@@ -143,7 +145,19 @@ export const apiService = {
       })
       .then((res) => res.data),
 
-  verify: () => api.get<{ success: boolean; user: { id: number; email: string; name: string } }>("/api/auth/verify").then((res) => res.data),
+  verify: () =>
+    api
+      .get<{
+        success: boolean;
+        user: {
+          id: number;
+          email: string;
+          name: string;
+          role?: 'admin' | 'usuario_padrao' | 'usuario_vendedor';
+          ploomesPersonId?: number | null;
+        };
+      }>("/api/auth/verify")
+      .then((res) => res.data),
 
   getStatistics: () => api.get<StatisticsResponse>("/api/statistics").then((res) => res.data),
 
