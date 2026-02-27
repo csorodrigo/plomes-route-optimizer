@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
         let q = supabase
           .from('customers')
           .select('id, name, cnpj, cpf, email, phone, tags, address, city, state, latitude, longitude')
-          .contains('tags', ['Cliente'])
+          .filter('tags', 'cs', '["Cliente"]')
           .not('latitude', 'is', null)
           .range(from, from + PAGE_SIZE - 1);
 
@@ -183,7 +183,7 @@ export async function GET(request: NextRequest) {
     let customerQuery = supabase
       .from('customers')
       .select('id, name, cnpj, cpf, email, phone, tags, address, city, state, latitude, longitude')
-      .contains('tags', ['Cliente'])
+      .filter('tags', 'cs', '["Cliente"]')
       .or(`name.ilike.%${query}%,cnpj.ilike.%${query}%,cpf.ilike.%${query}%`)
       .limit(10);
 
