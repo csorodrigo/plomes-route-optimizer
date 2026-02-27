@@ -117,10 +117,12 @@ async function geocodeCep(cep: string): Promise<{ lat: number; lng: number; city
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET || process.env.JWT_SECRET || 'dev-secret-change-in-production';
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = request.headers.get('authorization');
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const PLOOMES_API_KEY = process.env.PLOOMES_API_KEY;
