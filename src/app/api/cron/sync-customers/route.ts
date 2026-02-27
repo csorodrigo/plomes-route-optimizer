@@ -125,11 +125,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const PLOOMES_API_KEY = process.env.PLOOMES_API_KEY;
+  const PLOOMES_API_KEY = process.env.PLOOME_API_KEY;
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
   const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-  if (!PLOOMES_API_KEY) return NextResponse.json({ error: 'Missing PLOOMES_API_KEY' }, { status: 500 });
+  if (!PLOOMES_API_KEY) return NextResponse.json({ error: 'Missing PLOOME_API_KEY' }, { status: 500 });
   if (!SUPABASE_KEY) return NextResponse.json({ error: 'Missing SUPABASE_SERVICE_ROLE_KEY' }, { status: 500 });
 
   console.log('[SYNC-CUSTOMERS] Starting...');
