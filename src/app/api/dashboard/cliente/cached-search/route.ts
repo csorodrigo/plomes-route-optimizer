@@ -107,53 +107,6 @@ export async function GET(request: NextRequest) {
     console.log('🔧 [CACHED SEARCH] Using Supabase Key:', SUPABASE_KEY ? 'OK' : 'MISSING');
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let sellerCustomerIds: number[] | null = null;
-    if (authUser?.role === 'usuario_vendedor') {
-      if (!authUser.ploomesPersonId) {
-        return NextResponse.json(
-          { error: 'Usuário vendedor sem vínculo Ploomes configurado' },
-          { status: 403 }
-        );
-      }
-
-      const { data: sellerSales, error: sellerSalesError } = await supabase
-        .from('sales')
-        .select('customer_id')
-        .eq('owner_id', authUser.ploomesPersonId);
-
-      if (sellerSalesError) {
-        if ((sellerSalesError as any).code === '42703' || (sellerSalesError as any).code === 'PGRST204') {
-          return NextResponse.json(
-            { error: 'Migration pendente: coluna sales.owner_id não existe' },
-            { status: 503 }
-          );
-        }
-        console.error('[CACHED SEARCH] Seller sales filter error:', sellerSalesError);
-        return NextResponse.json(
-          { error: 'Erro ao filtrar clientes do vendedor' },
-          { status: 500 }
-        );
-      }
-
-      sellerCustomerIds = Array.from(
-        new Set(
-          (sellerSales || [])
-            .map((sale: any) => Number(sale.customer_id))
-            .filter((id) => Number.isInteger(id))
-        )
-      );
-
-      // Vendor has no sales yet (backfill pending or no customers assigned)
-      if (sellerCustomerIds.length === 0) {
-        return NextResponse.json({
-          customers: [],
-          query,
-          total: 0,
-          summary: { totalCustomers: 0, totalDeals: 0, totalValue: 0, avgCustomerValue: 0 }
-        });
-      }
-    }
-
     // Search customers in Supabase (much faster than Ploomes)
     // Empty query = bulk load for route optimizer (up to 5000 customers)
     // Non-empty query = targeted search (limit to 10 results)
@@ -163,8 +116,16 @@ export async function GET(request: NextRequest) {
       .or(`name.ilike.%${query}%,cnpj.ilike.%${query}%,cpf.ilike.%${query}%`)
       .limit(query.length > 0 ? 10 : 5000);
 
-    if (sellerCustomerIds) {
-      customerQuery = customerQuery.in('id', sellerCustomerIds);
+    // Filter by owner_id on customers table (set from Contacts.OwnerId in Ploomes)
+    // This is more accurate than filtering via sales.owner_id (deals)
+    if (authUser?.role === 'usuario_vendedor') {
+      if (!authUser.ploomesPersonId) {
+        return NextResponse.json(
+          { error: 'Usuário vendedor sem vínculo Ploomes configurado' },
+          { status: 403 }
+        );
+      }
+      customerQuery = customerQuery.eq('owner_id', authUser.ploomesPersonId);
     }
 
     const { data: customersData, error: customerError } = await customerQuery;
@@ -190,10 +151,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Filter only actual customers (not suppliers)
-    const customers = customersData.filter((customer: any) => {
-      const tags = customer.tags || [];
-      return tags.includes('Cliente') && !tags.includes('Fornecedor');
+    // Filter to 'Cliente' tag only — applies to all roles
+    // Keep contacts that have 'Cliente' tag even if they also have 'Fornecedor'
+    const customers = customersData.filter((c: any) => {
+      const tags = c.tags || [];
+      return tags.includes('Cliente');
     });
 
     if (customers.length === 0) {
