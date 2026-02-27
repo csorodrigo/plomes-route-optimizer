@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from '@supabase/supabase-js';
 import { env } from "@/lib/env.server";
 import bcrypt from 'bcryptjs';
+import { isAdmin } from "@/lib/auth-guard";
 
 function normalizeRole(role: string | null | undefined) {
   if (role === 'user' || role === 'usuario') return 'usuario_padrao';
@@ -9,12 +10,16 @@ function normalizeRole(role: string | null | undefined) {
 }
 
 /**
- * Update user
+ * Update user — admin only
  */
 export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  if (!isAdmin(request)) {
+    return NextResponse.json({ success: false, message: 'Acesso negado' }, { status: 403 });
+  }
+
   try {
     const params = await context.params;
     const userId = params.id;
@@ -115,12 +120,16 @@ export async function PUT(
 }
 
 /**
- * Delete user
+ * Delete user — admin only
  */
 export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  if (!isAdmin(request)) {
+    return NextResponse.json({ success: false, message: 'Acesso negado' }, { status: 403 });
+  }
+
   try {
     const params = await context.params;
     const userId = params.id;

@@ -46,6 +46,13 @@ export default function UsersPage() {
 
   const isAdmin = auth.user?.role === "admin";
 
+  // Redirect non-admin users immediately
+  useEffect(() => {
+    if (auth.isAuthenticated && !isAdmin) {
+      router.replace("/rota-cep");
+    }
+  }, [auth.isAuthenticated, isAdmin, router]);
+
   const fetchWithAuth = (input: RequestInfo | URL, init?: RequestInit) => {
     const token = typeof window !== "undefined" ? window.localStorage.getItem("auth_token") : null;
     const headers = new Headers(init?.headers);

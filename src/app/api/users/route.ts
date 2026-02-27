@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { env } from "@/lib/env.server";
 import bcrypt from 'bcryptjs';
 import { findPloomesUserByEmail } from "@/lib/ploomes-user-link";
+import { isAdmin } from "@/lib/auth-guard";
 
 function normalizeRole(role: string | null | undefined) {
   if (role === 'user' || role === 'usuario') return 'usuario_padrao';
@@ -10,9 +11,13 @@ function normalizeRole(role: string | null | undefined) {
 }
 
 /**
- * Get all users
+ * Get all users — admin only
  */
 export async function GET(request: NextRequest) {
+  if (!isAdmin(request)) {
+    return NextResponse.json({ success: false, message: 'Acesso negado' }, { status: 403 });
+  }
+
   try {
     console.log('👥 Users API - GET all users');
 
