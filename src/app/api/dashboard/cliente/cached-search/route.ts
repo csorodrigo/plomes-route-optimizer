@@ -137,11 +137,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Search customers in Supabase (much faster than Ploomes)
+    // Empty query = bulk load for route optimizer (up to 5000 customers)
+    // Non-empty query = targeted search (limit to 10 results)
     let customerQuery = supabase
       .from('customers')
       .select('id, name, cnpj, cpf, email, phone, tags, address, city, state, latitude, longitude')
       .or(`name.ilike.%${query}%,cnpj.ilike.%${query}%,cpf.ilike.%${query}%`)
-      .limit(10);
+      .limit(query.length > 0 ? 10 : 5000);
 
     if (sellerCustomerIds) {
       customerQuery = customerQuery.in('id', sellerCustomerIds);
