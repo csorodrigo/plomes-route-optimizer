@@ -107,69 +107,53 @@ export async function GET(request: NextRequest) {
     console.log('🔧 [CACHED SEARCH] Using Supabase Key:', SUPABASE_KEY ? 'OK' : 'MISSING');
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Search customers in Supabase (much faster than Ploomes)
-    // Empty query = bulk load for route optimizer (up to 5000 customers)
-    // Non-empty query = targeted search (limit to 10 results)
-    let customerQuery = supabase
-      .from('customers')
-      .select('id, name, cnpj, cpf, email, phone, tags, address, city, state, latitude, longitude')
-      .or(`name.ilike.%${query}%,cnpj.ilike.%${query}%,cpf.ilike.%${query}%`)
-      .limit(query.length > 0 ? 10 : 5000);
-
-    // Filter by owner_id on customers table (set from Contacts.OwnerId in Ploomes)
-    // This is more accurate than filtering via sales.owner_id (deals)
-    if (authUser?.role === 'usuario_vendedor') {
-      if (!authUser.ploomesPersonId) {
+    // ── BULK LOAD (empty query) ─────────────────────────────────────────────
+    // Supabase's max_rows is capped at 1000 per request. We paginate with DB-level
+    // filters (tag='Cliente' + lat not null) so every row returned is useful.
+    if (query.length === 0) {
+      if (authUser?.role === 'usuario_vendedor' && !authUser.ploomesPersonId) {
         return NextResponse.json(
           { error: 'Usuário vendedor sem vínculo Ploomes configurado' },
           { status: 403 }
         );
       }
-      customerQuery = customerQuery.eq('owner_id', authUser.ploomesPersonId);
-    }
 
-    const { data: customersData, error: customerError } = await customerQuery;
+      const MAX_CUSTOMERS = 5000;
+      const PAGE_SIZE = 1000;
+      const allCustomers: any[] = [];
+      let from = 0;
 
-    if (customerError) {
-      console.error('[CACHED SEARCH] Customer search error:', customerError);
-      console.error('[CACHED SEARCH] Error details:', JSON.stringify(customerError, null, 2));
+      while (allCustomers.length < MAX_CUSTOMERS) {
+        let q = supabase
+          .from('customers')
+          .select('id, name, cnpj, cpf, email, phone, tags, address, city, state, latitude, longitude')
+          .contains('tags', ['Cliente'])
+          .not('latitude', 'is', null)
+          .range(from, from + PAGE_SIZE - 1);
 
-      return NextResponse.json(
-        {
-          error: 'Erro ao conectar com banco de dados',
-          details: customerError.message || 'Database connection failed',
-          code: customerError.code || 'DB_ERROR'
-        },
-        { status: 500 }
-      );
-    }
+        if (authUser?.role === 'usuario_vendedor') {
+          q = q.eq('owner_id', authUser.ploomesPersonId);
+        }
 
-    if (!customersData || customersData.length === 0) {
-      return NextResponse.json(
-        { error: "Cliente não encontrado" },
-        { status: 404 }
-      );
-    }
+        const { data, error } = await q;
+        if (error) {
+          console.error('[CACHED SEARCH] Bulk load page error:', error);
+          break;
+        }
+        if (!data || data.length === 0) break;
 
-    // Filter to 'Cliente' tag only — applies to all roles
-    // Keep contacts that have 'Cliente' tag even if they also have 'Fornecedor'
-    const customers = customersData.filter((c: any) => {
-      const tags = c.tags || [];
-      return tags.includes('Cliente');
-    });
+        allCustomers.push(...data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
 
-    if (customers.length === 0) {
-      return NextResponse.json(
-        { error: "Cliente não encontrado" },
-        { status: 404 }
-      );
-    }
+      console.log(`✅ [CACHED SEARCH] Bulk load: ${allCustomers.length} geocoded Cliente customers`);
 
-    console.log(`✅ [CACHED SEARCH] Found ${customers.length} matching customers`);
+      if (allCustomers.length === 0) {
+        return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
+      }
 
-    // Fast path: bulk load (empty query) — skip sales queries, map only needs basic geo data
-    if (query.length === 0) {
-      const customersBasic = customers.map((customer: any) => ({
+      const customersBasic = allCustomers.map((customer: any) => ({
         customer: {
           id: customer.id.toString(),
           name: customer.name || 'Sem nome',
@@ -193,6 +177,48 @@ export async function GET(request: NextRequest) {
         summary: { totalCustomers: customersBasic.length, totalDeals: 0, totalValue: 0, avgCustomerValue: 0 }
       });
     }
+
+    // ── TARGETED SEARCH (non-empty query) ───────────────────────────────────
+    // Filter 'Cliente' tag at DB level to avoid in-memory filtering overhead.
+    let customerQuery = supabase
+      .from('customers')
+      .select('id, name, cnpj, cpf, email, phone, tags, address, city, state, latitude, longitude')
+      .contains('tags', ['Cliente'])
+      .or(`name.ilike.%${query}%,cnpj.ilike.%${query}%,cpf.ilike.%${query}%`)
+      .limit(10);
+
+    // Filter by owner_id on customers table (set from Contacts.OwnerId in Ploomes)
+    if (authUser?.role === 'usuario_vendedor') {
+      if (!authUser.ploomesPersonId) {
+        return NextResponse.json(
+          { error: 'Usuário vendedor sem vínculo Ploomes configurado' },
+          { status: 403 }
+        );
+      }
+      customerQuery = customerQuery.eq('owner_id', authUser.ploomesPersonId);
+    }
+
+    const { data: customersData, error: customerError } = await customerQuery;
+
+    if (customerError) {
+      console.error('[CACHED SEARCH] Customer search error:', customerError);
+      return NextResponse.json(
+        {
+          error: 'Erro ao conectar com banco de dados',
+          details: customerError.message || 'Database connection failed',
+          code: customerError.code || 'DB_ERROR'
+        },
+        { status: 500 }
+      );
+    }
+
+    const customers = customersData || [];
+
+    if (customers.length === 0) {
+      return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
+    }
+
+    console.log(`✅ [CACHED SEARCH] Found ${customers.length} matching customers`);
 
     // Detailed path: targeted search — fetch sales/deals per customer
     const customersWithDeals = await Promise.all(customers.map(async (customer: any) => {
