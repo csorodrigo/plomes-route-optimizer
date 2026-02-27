@@ -99,7 +99,11 @@ export default function RotaCepPage() {
       // Load customers via RBAC-aware endpoint (filters by seller if usuario_vendedor)
       const customersResponse = await fetchWithAuth("/api/dashboard/cliente/cached-search?query=");
 
-      if (!customersResponse.ok) throw new Error("Erro ao buscar clientes");
+      if (!customersResponse.ok) {
+        const errData = await customersResponse.json().catch(() => ({}));
+        const reason = errData?.error || "Erro ao buscar clientes";
+        throw new Error(reason);
+      }
 
       const customersData = await customersResponse.json();
 
@@ -429,16 +433,20 @@ export default function RotaCepPage() {
               {showUserMenu && (
                 <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-[9999]">
                   <div className="py-1">
-                    <button
-                      onClick={() => (window.location.href = "/users")}
-                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                      </svg>
-                      Gerenciar Usuários
-                    </button>
-                    <div className="border-t border-slate-200"></div>
+                    {user.role === "admin" && (
+                      <>
+                        <button
+                          onClick={() => (window.location.href = "/users")}
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                          </svg>
+                          Gerenciar Usuários
+                        </button>
+                        <div className="border-t border-slate-200"></div>
+                      </>
+                    )}
                     <button
                       onClick={async () => { setShowUserMenu(false); await signOut(); }}
                       className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"

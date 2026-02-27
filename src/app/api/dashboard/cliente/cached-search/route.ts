@@ -25,9 +25,19 @@ async function getRequesterContext(request: NextRequest) {
   const token = authHeader.slice(7);
   const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key-for-development-only";
 
+  // Step 1: verify JWT — only this step makes the token "invalid"
+  let decoded: JwtPayload;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+    decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+  } catch {
+    return { invalid: true as const };
+  }
+
+  // Step 2: enrich with DB role — failures fall back to JWT claims
+  try {
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || env.SUPABASE_URL;
+    const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     let dbUser: any = null;
 
     const primaryQuery = await supabase
@@ -53,7 +63,12 @@ async function getRequesterContext(request: NextRequest) {
       ploomesPersonId: dbUser?.ploomes_person_id ?? decoded.ploomesPersonId ?? null,
     };
   } catch {
-    return { invalid: true as const };
+    // DB unavailable — fall back to claims from the JWT itself
+    return {
+      userId: decoded.userId,
+      role: normalizeRole(decoded.role ?? null),
+      ploomesPersonId: decoded.ploomesPersonId ?? null,
+    };
   }
 }
 
@@ -187,7 +202,34 @@ export async function GET(request: NextRequest) {
 
     console.log(`✅ [CACHED SEARCH] Found ${customers.length} matching customers`);
 
-    // Process all customers found
+    // Fast path: bulk load (empty query) — skip sales queries, map only needs basic geo data
+    if (query.length === 0) {
+      const customersBasic = customers.map((customer: any) => ({
+        customer: {
+          id: customer.id.toString(),
+          name: customer.name || 'Sem nome',
+          email: customer.email || null,
+          phone: customer.phone || null,
+          cnpj: customer.cnpj || customer.cpf || null,
+          address: customer.address || null,
+          city: customer.city || null,
+          state: customer.state || null,
+          latitude: customer.latitude ?? null,
+          longitude: customer.longitude ?? null,
+        },
+        deals: [],
+        summary: { totalDeals: 0, totalValue: 0, avgDealValue: 0 }
+      }));
+
+      return NextResponse.json({
+        customers: customersBasic,
+        query,
+        total: customersBasic.length,
+        summary: { totalCustomers: customersBasic.length, totalDeals: 0, totalValue: 0, avgCustomerValue: 0 }
+      });
+    }
+
+    // Detailed path: targeted search — fetch sales/deals per customer
     const customersWithDeals = await Promise.all(customers.map(async (customer: any) => {
       try {
         console.log(`🔍 [CACHED SEARCH] Processing customer: ${customer.name} (ID: ${customer.id})`);
