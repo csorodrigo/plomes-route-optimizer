@@ -143,11 +143,14 @@ export async function GET(request: NextRequest) {
         )
       );
 
+      // Vendor has no sales yet (backfill pending or no customers assigned)
       if (sellerCustomerIds.length === 0) {
-        return NextResponse.json(
-          { error: "Cliente não encontrado" },
-          { status: 404 }
-        );
+        return NextResponse.json({
+          customers: [],
+          query,
+          total: 0,
+          summary: { totalCustomers: 0, totalDeals: 0, totalValue: 0, avgCustomerValue: 0 }
+        });
       }
     }
 
