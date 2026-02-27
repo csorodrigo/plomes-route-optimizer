@@ -76,24 +76,16 @@ export default function RotaCepPage() {
         const cepClean = String(origin).replace(/\D/g, "");
         if (!cepClean) { alert("CEP inválido"); return; }
 
-        const viaCepResponse = await fetch(`https://viacep.com.br/ws/${cepClean}/json/`);
-        const viaCepData = await viaCepResponse.json();
-
-        if (viaCepData.erro) { alert("CEP não encontrado"); return; }
-
-        const address = `${viaCepData.logradouro}, ${viaCepData.localidade}, ${viaCepData.uf}`;
-        const geocodeResponse = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`
-        );
+        const geocodeResponse = await fetch(`/api/geocoding/cep/${cepClean}`);
         const geocodeData = await geocodeResponse.json();
 
-        if (geocodeData.length === 0) { alert("Não foi possível geocodificar o endereço"); return; }
+        if (!geocodeResponse.ok || !geocodeData.success) { alert("CEP não encontrado"); return; }
 
-        finalCoords = { lat: parseFloat(geocodeData[0].lat), lng: parseFloat(geocodeData[0].lon) };
+        finalCoords = { lat: geocodeData.lat, lng: geocodeData.lng };
         setOriginCoords(finalCoords);
-        setOriginAddress(viaCepData.logradouro);
-        setOriginCity(`${viaCepData.localidade} - ${viaCepData.uf}`);
-        cityName = viaCepData.localidade;
+        setOriginAddress(geocodeData.address || '');
+        setOriginCity(`${geocodeData.city || ''} - ${geocodeData.state || ''}`);
+        cityName = geocodeData.city || '';
       }
 
       // Load customers via RBAC-aware endpoint (filters by seller if usuario_vendedor)
